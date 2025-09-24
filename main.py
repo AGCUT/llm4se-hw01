@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Optional, Tuple, List
 
 from PIL import Image, ImageDraw, ImageFont, ExifTags
+from datetime import datetime
 
 
 SUPPORTED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".tif", ".tiff", ".webp"}
@@ -53,7 +54,9 @@ def parse_color(color_str: str) -> Tuple[int, int, int, int]:
 	return 0, 0, 0, 255
 
 
-def load_font(font_size: int, font_path: Optional[str]) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
+# Changed return annotation to a single compatible type for older Python
+
+def load_font(font_size: int, font_path: Optional[str]) -> ImageFont.ImageFont:
 	"""Load a truetype font if possible, else fallback to default."""
 	if font_path:
 		font_file = Path(font_path)
@@ -103,6 +106,22 @@ def get_exif_datetime_str(img: Image.Image) -> Optional[str]:
 		date_part = value.split()[0]
 		y, m, d = date_part.split(':')[0:3]
 		return f"{int(y):04d}-{int(m):02d}-{int(d):02d}"
+	except Exception:
+		return None
+
+
+def get_fs_date_str(path: Path, which: str) -> Optional[str]:
+	"""Get file system date (mtime/ctime) as 'YYYY-MM-DD'."""
+	try:
+		st = path.stat()
+		if which == "mtime":
+			ts = st.st_mtime
+		elif which == "ctime":
+			ts = st.st_ctime
+		else:
+			return None
+		dt = datetime.fromtimestamp(ts)
+		return dt.strftime("%Y-%m-%d")
 	except Exception:
 		return None
 
@@ -181,7 +200,7 @@ def watermark_image(src_path: Path, text: str, font: ImageFont.ImageFont, color:
 		return None
 
 
-def process_path(input_path: Path, font_size: int, color_str: str, position: str, font_path: Optional[str]) -> None:
+def process_path(input_path: Path, font_size: int, color_str: str, position: str, font_path: Optional[str], fallback: str) -> None:
 	images = list_images(input_path)
 	if not images:
 		print("No images found to process.")
@@ -205,9 +224,12 @@ def process_path(input_path: Path, font_size: int, color_str: str, position: str
 				date_text = get_exif_datetime_str(im)
 		except Exception:
 			date_text = None
+
+		if not date_text and fallback in {"mtime", "ctime"}:
+			date_text = get_fs_date_str(img_path, fallback)
+
 		if not date_text:
-			# Skip images without EXIF date per requirements emphasis
-			print(f"[INFO] Skipping {img_path.name}: no EXIF shooting date.")
+			print(f"[INFO] Skipping {img_path.name}: no date available (EXIF or {fallback}).")
 			continue
 
 		out = watermark_image(img_path, date_text, font, color, position, output_dir)
@@ -248,6 +270,12 @@ def build_arg_parser() -> argparse.ArgumentParser:
 		"--font-path",
 		help="Optional path to a .ttf/.otf font file. If not provided, uses Arial on Windows or PIL default.",
 	)
+	parser.add_argument(
+		"--fallback",
+		choices=["none", "mtime", "ctime"],
+		default="mtime",
+		help="When EXIF date is missing, use file time as fallback (default: mtime).",
+	)
 	return parser
 
 
@@ -255,7 +283,7 @@ def main() -> None:
 	parser = build_arg_parser()
 	args = parser.parse_args()
 	target = Path(args.path)
-	process_path(target, args.font_size, args.color, args.position, args.font_path)
+	process_path(target, args.font_size, args.color, args.position, args.font_path, args.fallback)
 
 
 if __name__ == "__main__":
