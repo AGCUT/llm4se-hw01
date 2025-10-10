@@ -84,6 +84,9 @@ class ImageListWidget(QtWidgets.QListWidget):
             item.setData(QtCore.Qt.UserRole, path)
             self.addItem(item)
             self.setItemWidget(item, widget)
+        # 若当前无选中项，则自动选中第一项
+        if self.count() > 0 and self.currentRow() == -1:
+            self.setCurrentRow(0)
 
     def get_all_paths(self) -> List[str]:
         result: List[str] = []
@@ -206,33 +209,41 @@ class PreviewCanvas(QtWidgets.QWidget):
         painter.end()
 
     def _build_overlay_qimage(self) -> QtGui.QImage:
-        # prefer image watermark for preview; else text
+        # 同时合成图片与文本水印；文本在上层
         if not self._settings:
             return QtGui.QImage()
-        p = (self._settings.img_wm_path or "").strip()
-        if p and os.path.isfile(p):
-            img = QtGui.QImage(p)
-            if not img.isNull():
-                bx = max(1, self._scaledBase.width())
-                mode, percent, w, h = self._settings.img_wm_scale
-                if mode == "percent" and percent:
-                    target_w = max(1, int(bx * (percent / 100.0)))
-                    img = img.scaledToWidth(target_w, QtCore.Qt.SmoothTransformation)
-                elif mode == "size" and w and h:
-                    img = img.scaled(int(w), int(h), QtCore.Qt.IgnoreAspectRatio, QtCore.Qt.SmoothTransformation)
-                if 0 <= self._settings.img_wm_opacity < 100:
-                    tmp = QtGui.QImage(img.size(), QtGui.QImage.Format_ARGB32_Premultiplied)
-                    tmp.fill(QtCore.Qt.transparent)
-                    p2 = QtGui.QPainter(tmp)
-                    p2.setOpacity(self._settings.img_wm_opacity / 100.0)
-                    p2.drawImage(0, 0, img)
-                    p2.end()
-                    return tmp
-                return img
-        # text overlay
-        if (self._settings.wm_text or "").strip():
+        show_image = getattr(self._settings, 'wm_use_image', True)
+        show_text = getattr(self._settings, 'wm_use_text', True)
+
+        layers: List[QtGui.QImage] = []
+
+        # 图片水印层
+        if show_image:
+            p = (self._settings.img_wm_path or "").strip()
+            if p and os.path.isfile(p):
+                img = QtGui.QImage(p)
+                if not img.isNull():
+                    bx = max(1, self._scaledBase.width())
+                    mode, percent, w, h = self._settings.img_wm_scale
+                    if mode == "percent" and percent:
+                        target_w = max(1, int(bx * (percent / 100.0)))
+                        img = img.scaledToWidth(target_w, QtCore.Qt.SmoothTransformation)
+                    elif mode == "size" and w and h:
+                        img = img.scaled(int(w), int(h), QtCore.Qt.IgnoreAspectRatio, QtCore.Qt.SmoothTransformation)
+                    if 0 <= self._settings.img_wm_opacity < 100:
+                        tmp = QtGui.QImage(img.size(), QtGui.QImage.Format_ARGB32_Premultiplied)
+                        tmp.fill(QtCore.Qt.transparent)
+                        p2 = QtGui.QPainter(tmp)
+                        p2.setOpacity(self._settings.img_wm_opacity / 100.0)
+                        p2.drawImage(0, 0, img)
+                        p2.end()
+                        img = tmp
+                    layers.append(img)
+
+        # 文本水印层
+        if show_text and (self._settings.wm_text or "").strip():
             from .utils import render_text_overlay_qimage
-            return render_text_overlay_qimage(
+            text_q = render_text_overlay_qimage(
                 text=self._settings.wm_text,
                 font_family=self._settings.wm_font_family,
                 point_size=int(self._settings.wm_font_size),
@@ -242,7 +253,24 @@ class PreviewCanvas(QtWidgets.QWidget):
                 shadow=bool(self._settings.wm_shadow),
                 outline=bool(self._settings.wm_outline),
             )
-        return QtGui.QImage()
+            layers.append(text_q)
+
+        if not layers:
+            return QtGui.QImage()
+
+        if len(layers) == 1:
+            return layers[0]
+
+        # 合并层：以最大宽高建立透明画布，先绘图片层，再绘文本层
+        max_w = max(layer.width() for layer in layers)
+        max_h = max(layer.height() for layer in layers)
+        canvas = QtGui.QImage(max_w, max_h, QtGui.QImage.Format_ARGB32_Premultiplied)
+        canvas.fill(QtCore.Qt.transparent)
+        painter = QtGui.QPainter(canvas)
+        for layer in layers:
+            painter.drawImage(0, 0, layer)
+        painter.end()
+        return canvas
 
     def mousePressEvent(self, event: QtGui.QMouseEvent) -> None:
         if event.button() == QtCore.Qt.LeftButton and self._overlayRectPx.contains(event.pos()):
@@ -323,6 +351,12 @@ class MainWindow(QtWidgets.QMainWindow):
         self.percentSpin = QtWidgets.QSpinBox()
         self.percentSpin.setRange(1, 1000)
         self.percentSpin.setValue(100)
+
+        # 水印使用选择
+        self.useTextCheck = QtWidgets.QCheckBox("使用文本水印")
+        self.useImageCheck = QtWidgets.QCheckBox("使用图片水印")
+        self.useTextCheck.setChecked(True)
+        self.useImageCheck.setChecked(True)
 
         # 文本水印设置
         self.wmTextEdit = QtWidgets.QLineEdit()
@@ -426,6 +460,15 @@ class MainWindow(QtWidgets.QMainWindow):
         resizeLay.addWidget(self.percentSpin, 3, 2)
         resizeGroup.setLayout(resizeLay)
         form.addRow(resizeGroup)
+
+        # 水印类型选择
+        useGroup = QtWidgets.QGroupBox("水印类型")
+        useLay = QtWidgets.QHBoxLayout()
+        useLay.addWidget(self.useTextCheck)
+        useLay.addWidget(self.useImageCheck)
+        useLay.addStretch(1)
+        useGroup.setLayout(useLay)
+        form.addRow(useGroup)
 
         # 文本水印分组
         wmGroup = QtWidgets.QGroupBox("文本水印")
@@ -551,9 +594,30 @@ class MainWindow(QtWidgets.QMainWindow):
         self.rotationSpin.valueChanged.connect(self.rotationSlider.setValue)
         self.rotationSpin.valueChanged.connect(lambda _: self._refresh_preview())
         self.imageList.itemSelectionChanged.connect(self._on_list_selection_changed)
+        self.imageList.filesChanged.connect(self._on_list_selection_changed)
         self.preview.manualPosChanged.connect(lambda _x, _y: self._on_manual_pos_changed())
-        self.imgWmOpacitySlider.valueChanged.connect(lambda v: self.imgWmOpacityLabel.setText(f"透明度: {v}%"))
+        self.imgWmOpacitySlider.valueChanged.connect(lambda v: (self.imgWmOpacityLabel.setText(f"透明度: {v}%"), self._refresh_preview()))
         self.imgWmBrowseBtn.clicked.connect(self._browse_img_wm)
+        # 文本水印：任何变更都刷新
+        self.wmTextEdit.textChanged.connect(self._refresh_preview)
+        self.wmFontCombo.currentFontChanged.connect(lambda _f: self._refresh_preview())
+        self.wmFontSizeSpin.valueChanged.connect(lambda _v: self._refresh_preview())
+        self.wmBoldCheck.toggled.connect(lambda _b: self._refresh_preview())
+        self.wmItalicCheck.toggled.connect(lambda _b: self._refresh_preview())
+        self.wmShadowCheck.toggled.connect(lambda _b: self._refresh_preview())
+        self.wmOutlineCheck.toggled.connect(lambda _b: self._refresh_preview())
+        self.wmOpacitySlider.valueChanged.connect(lambda _v: self._refresh_preview())
+        self.wmColorBtn.clicked.connect(lambda: (self._choose_wm_color(), self._refresh_preview()))
+        # 图片水印：路径/缩放/透明度变更都刷新
+        self.imgWmPathEdit.textChanged.connect(self._refresh_preview)
+        self.imgWmScaleByPercent.toggled.connect(lambda _b: self._refresh_preview())
+        self.imgWmScaleBySize.toggled.connect(lambda _b: self._refresh_preview())
+        self.imgWmPercentSpin.valueChanged.connect(lambda _v: self._refresh_preview())
+        self.imgWmWidthSpin.valueChanged.connect(lambda _v: self._refresh_preview())
+        self.imgWmHeightSpin.valueChanged.connect(lambda _v: self._refresh_preview())
+        # 类型选择联动
+        self.useTextCheck.toggled.connect(lambda _b: self._refresh_preview())
+        self.useImageCheck.toggled.connect(lambda _b: self._refresh_preview())
         self._on_format_changed(self.formatCombo.currentText())
         self._refresh_preview()
 
@@ -660,6 +724,8 @@ class MainWindow(QtWidgets.QMainWindow):
             preset_position=preset_key,
             manual_pos_norm=manual_norm,
             rotation_deg=float(getattr(self, "rotationSpin", QtWidgets.QSpinBox()).value() if hasattr(self, "rotationSpin") else 0),
+            wm_use_text=self.useTextCheck.isChecked(),
+            wm_use_image=self.useImageCheck.isChecked(),
         )
 
     def _export(self) -> None:
@@ -778,6 +844,8 @@ class MainWindow(QtWidgets.QMainWindow):
             preset_position=preset_key,
             manual_pos_norm=manual_norm,
             rotation_deg=float(getattr(self, "rotationSpin", QtWidgets.QSpinBox()).value() if hasattr(self, "rotationSpin") else 0),
+            wm_use_text=self.useTextCheck.isChecked(),
+            wm_use_image=self.useImageCheck.isChecked(),
         )
         self.preview.apply_settings(settings)
 

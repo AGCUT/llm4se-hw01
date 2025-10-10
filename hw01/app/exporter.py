@@ -37,6 +37,9 @@ class ExportSettings:
     preset_position: str = "bottom-right"  # 9-grid keys
     manual_pos_norm: Tuple[float, float] = (0.8, 0.8)  # top-left normalized (0..1)
     rotation_deg: float = 0.0
+    # which watermark to use
+    wm_use_text: bool = True
+    wm_use_image: bool = True
 
 
 class Exporter:
@@ -102,8 +105,9 @@ class Exporter:
                     im.load()
                     resized = self._resize(im)
                     # apply text watermark if provided
-                    final = self._apply_text_watermark(resized)
-                    final = self._apply_image_watermark(final)
+                    # 先叠加图片水印，再叠加文本水印，确保文本可见
+                    final = self._apply_image_watermark(resized)
+                    final = self._apply_text_watermark(final)
                     out_name = self._build_output_name(src)
                     out_path = os.path.join(self.settings.output_dir, out_name)
                     self._save(final, out_path)
@@ -113,6 +117,8 @@ class Exporter:
         return ok, fail
 
     def _apply_text_watermark(self, img: Image.Image) -> Image.Image:
+        if not self.settings.wm_use_text:
+            return img
         text = (self.settings.wm_text or "").strip()
         if not text:
             return img
@@ -145,6 +151,8 @@ class Exporter:
         return base
 
     def _apply_image_watermark(self, img: Image.Image) -> Image.Image:
+        if not self.settings.wm_use_image:
+            return img
         path = (self.settings.img_wm_path or "").strip()
         if not path or not os.path.isfile(path):
             return img
