@@ -159,6 +159,26 @@ class MainWindow(QtWidgets.QMainWindow):
         self.wmShadowCheck = QtWidgets.QCheckBox("阴影")
         self.wmOutlineCheck = QtWidgets.QCheckBox("描边")
 
+        # 图片水印设置
+        self.imgWmPathEdit = QtWidgets.QLineEdit()
+        self.imgWmBrowseBtn = QtWidgets.QPushButton("选择图片…")
+        self.imgWmScaleByPercent = QtWidgets.QRadioButton("按百分比缩放")
+        self.imgWmScaleBySize = QtWidgets.QRadioButton("按像素缩放")
+        self.imgWmScaleByPercent.setChecked(True)
+        self.imgWmPercentSpin = QtWidgets.QSpinBox()
+        self.imgWmPercentSpin.setRange(1, 1000)
+        self.imgWmPercentSpin.setValue(30)
+        self.imgWmWidthSpin = QtWidgets.QSpinBox()
+        self.imgWmWidthSpin.setRange(1, 10000)
+        self.imgWmWidthSpin.setValue(200)
+        self.imgWmHeightSpin = QtWidgets.QSpinBox()
+        self.imgWmHeightSpin.setRange(1, 10000)
+        self.imgWmHeightSpin.setValue(200)
+        self.imgWmOpacitySlider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
+        self.imgWmOpacitySlider.setRange(0, 100)
+        self.imgWmOpacitySlider.setValue(60)
+        self.imgWmOpacityLabel = QtWidgets.QLabel("透明度: 60%")
+
         self.importFilesBtn = QtWidgets.QPushButton("导入图片…")
         self.importFolderBtn = QtWidgets.QPushButton("导入文件夹…")
         self.clearBtn = QtWidgets.QPushButton("清空列表")
@@ -247,6 +267,30 @@ class MainWindow(QtWidgets.QMainWindow):
         wmGroup.setLayout(wmLay)
         form.addRow(wmGroup)
 
+        # 图片水印分组
+        imgWmGroup = QtWidgets.QGroupBox("图片水印（支持 PNG 透明）")
+        imgLay = QtWidgets.QGridLayout()
+        imgPathRow = QtWidgets.QHBoxLayout()
+        imgPathRow.addWidget(self.imgWmPathEdit, 1)
+        imgPathRow.addWidget(self.imgWmBrowseBtn)
+        imgLay.addWidget(QtWidgets.QLabel("图片路径:"), 0, 0)
+        imgLay.addLayout(imgPathRow, 0, 1, 1, 3)
+        imgLay.addWidget(self.imgWmScaleByPercent, 1, 0)
+        imgLay.addWidget(QtWidgets.QLabel("百分比:"), 1, 1)
+        imgLay.addWidget(self.imgWmPercentSpin, 1, 2)
+        imgLay.addWidget(self.imgWmScaleBySize, 2, 0)
+        imgLay.addWidget(QtWidgets.QLabel("宽度:"), 2, 1)
+        imgLay.addWidget(self.imgWmWidthSpin, 2, 2)
+        imgLay.addWidget(QtWidgets.QLabel("高度:"), 2, 3)
+        imgLay.addWidget(self.imgWmHeightSpin, 2, 4)
+        imgOpRow = QtWidgets.QHBoxLayout()
+        imgOpRow.addWidget(self.imgWmOpacitySlider, 1)
+        imgOpRow.addWidget(self.imgWmOpacityLabel)
+        imgLay.addWidget(QtWidgets.QLabel("透明度:"), 3, 0)
+        imgLay.addLayout(imgOpRow, 3, 1, 1, 3)
+        imgWmGroup.setLayout(imgLay)
+        form.addRow(imgWmGroup)
+
         # 操作按钮
         btnRow = QtWidgets.QHBoxLayout()
         btnRow.addWidget(self.importFilesBtn)
@@ -278,6 +322,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self.formatCombo.currentTextChanged.connect(self._on_format_changed)
         self.wmOpacitySlider.valueChanged.connect(self._on_opacity_changed)
         self.wmColorBtn.clicked.connect(self._choose_wm_color)
+        self.imgWmOpacitySlider.valueChanged.connect(lambda v: self.imgWmOpacityLabel.setText(f"透明度: {v}%"))
+        self.imgWmBrowseBtn.clicked.connect(self._browse_img_wm)
         self._on_format_changed(self.formatCombo.currentText())
 
     def _on_format_changed(self, fmt: str) -> None:
@@ -348,6 +394,14 @@ class MainWindow(QtWidgets.QMainWindow):
         else:
             naming = ("keep", "")
 
+        # 图片水印收集
+        img_wm_path = self.imgWmPathEdit.text().strip()
+        if self.imgWmScaleByPercent.isChecked():
+            img_wm_scale = ("percent", int(self.imgWmPercentSpin.value()), None, None)
+        else:
+            img_wm_scale = ("size", None, int(self.imgWmWidthSpin.value()), int(self.imgWmHeightSpin.value()))
+        img_wm_opacity = int(self.imgWmOpacitySlider.value())
+
         return ExportSettings(
             input_paths=input_paths,
             output_dir=output_dir,
@@ -364,6 +418,9 @@ class MainWindow(QtWidgets.QMainWindow):
             wm_color_rgba=(self._wmColor.red(), self._wmColor.green(), self._wmColor.blue(), self._wmColor.alpha()),
             wm_shadow=self.wmShadowCheck.isChecked(),
             wm_outline=self.wmOutlineCheck.isChecked(),
+            img_wm_path=img_wm_path,
+            img_wm_scale=img_wm_scale,
+            img_wm_opacity=img_wm_opacity,
         )
 
     def _export(self) -> None:
@@ -398,6 +455,12 @@ class MainWindow(QtWidgets.QMainWindow):
         pix = QtGui.QPixmap(self.wmColorPreview.width(), self.wmColorPreview.height())
         pix.fill(self._wmColor)
         self.wmColorPreview.setPixmap(pix)
+
+    def _browse_img_wm(self) -> None:
+        filter_str = "图像文件 (*.png *.jpg *.jpeg *.bmp *.tif *.tiff)"
+        path, _ = QtWidgets.QFileDialog.getOpenFileName(self, "选择图片水印", "", filter_str)
+        if path:
+            self.imgWmPathEdit.setText(path)
 
 
 class WatermarkApp:

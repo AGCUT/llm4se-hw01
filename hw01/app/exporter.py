@@ -27,6 +27,11 @@ class ExportSettings:
     wm_color_rgba: Tuple[int, int, int, int] = (255, 255, 255, 128)
     wm_shadow: bool = False
     wm_outline: bool = False
+    # image watermark
+    img_wm_path: str = ""
+    # (mode, percent, width, height) where mode in {"percent","size"}
+    img_wm_scale: Tuple[str, Optional[int], Optional[int], Optional[int]] = ("percent", 30, None, None)
+    img_wm_opacity: int = 60
 
 
 class Exporter:
@@ -93,6 +98,7 @@ class Exporter:
                     resized = self._resize(im)
                     # apply text watermark if provided
                     final = self._apply_text_watermark(resized)
+                    final = self._apply_image_watermark(final)
                     out_name = self._build_output_name(src)
                     out_path = os.path.join(self.settings.output_dir, out_name)
                     self._save(final, out_path)
@@ -129,5 +135,45 @@ class Exporter:
         pos = (max(0, bx - ox - margin), max(0, by - oy - margin))
         base.alpha_composite(overlay, dest=pos)
         return base
+
+    def _apply_image_watermark(self, img: Image.Image) -> Image.Image:
+        path = (self.settings.img_wm_path or "").strip()
+        if not path or not os.path.isfile(path):
+            return img
+        try:
+            with Image.open(path) as wm:
+                wm = wm.convert("RGBA")
+                # scale
+                mode, percent, w, h = self.settings.img_wm_scale
+                if mode == "percent" and percent:
+                    bx, by = img.size
+                    target_w = max(1, int(bx * (percent / 100.0)))
+                    ratio = target_w / wm.width
+                    target_h = max(1, int(wm.height * ratio))
+                    wm = wm.resize((target_w, target_h), Image.LANCZOS)
+                elif mode == "size" and w and h:
+                    wm = wm.resize((int(w), int(h)), Image.LANCZOS)
+
+                # opacity
+                opacity = max(0, min(100, int(self.settings.img_wm_opacity)))
+                if opacity < 100:
+                    alpha = wm.split()[-1]
+                    alpha = alpha.point(lambda p: p * (opacity / 100.0))
+                    wm.putalpha(alpha)
+
+                # compose bottom-right
+                if img.mode != "RGBA":
+                    base = img.convert("RGBA")
+                else:
+                    base = img.copy()
+                bx, by = base.size
+                wx, wy = wm.size
+                margin = max(8, int(min(bx, by) * 0.01))
+                pos = (max(0, bx - wx - margin), max(0, by - wy - margin))
+                base.alpha_composite(wm, dest=pos)
+                return base
+        except Exception:
+            return img
+        return img
 
 
