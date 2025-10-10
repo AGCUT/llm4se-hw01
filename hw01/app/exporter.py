@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from typing import List, Optional, Tuple
 
 from PIL import Image
+from .utils import qimage_to_pil_rgba, render_text_overlay_qimage
 
 
 NamingRule = Tuple[str, str]  # ("keep"|"prefix"|"suffix", value)
@@ -17,6 +18,15 @@ class ExportSettings:
     naming_rule: NamingRule
     resize_mode: str  # "none"|"width"|"height"|"percent"
     resize_value: Optional[int]
+    # text watermark
+    wm_text: str = ""
+    wm_font_family: str = "Microsoft YaHei"
+    wm_font_size: int = 32
+    wm_bold: bool = False
+    wm_italic: bool = False
+    wm_color_rgba: Tuple[int, int, int, int] = (255, 255, 255, 128)
+    wm_shadow: bool = False
+    wm_outline: bool = False
 
 
 class Exporter:
@@ -81,12 +91,43 @@ class Exporter:
                 with Image.open(src) as im:
                     im.load()
                     resized = self._resize(im)
+                    # apply text watermark if provided
+                    final = self._apply_text_watermark(resized)
                     out_name = self._build_output_name(src)
                     out_path = os.path.join(self.settings.output_dir, out_name)
-                    self._save(resized, out_path)
+                    self._save(final, out_path)
                     ok += 1
             except Exception:
                 fail += 1
         return ok, fail
+
+    def _apply_text_watermark(self, img: Image.Image) -> Image.Image:
+        text = (self.settings.wm_text or "").strip()
+        if not text:
+            return img
+        # render overlay via Qt for high-quality font rendering
+        overlay_qimg = render_text_overlay_qimage(
+            text=text,
+            font_family=self.settings.wm_font_family,
+            point_size=int(self.settings.wm_font_size),
+            bold=bool(self.settings.wm_bold),
+            italic=bool(self.settings.wm_italic),
+            rgba=self.settings.wm_color_rgba,
+            shadow=bool(self.settings.wm_shadow),
+            outline=bool(self.settings.wm_outline),
+        )
+        overlay = qimage_to_pil_rgba(overlay_qimg)
+        if img.mode != "RGBA":
+            base = img.convert("RGBA")
+        else:
+            base = img.copy()
+
+        bx, by = base.size
+        ox, oy = overlay.size
+        # place at bottom-right with margin
+        margin = max(8, int(min(bx, by) * 0.01))
+        pos = (max(0, bx - ox - margin), max(0, by - oy - margin))
+        base.alpha_composite(overlay, dest=pos)
+        return base
 
 

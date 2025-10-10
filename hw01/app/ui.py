@@ -139,6 +139,26 @@ class MainWindow(QtWidgets.QMainWindow):
         self.percentSpin.setRange(1, 1000)
         self.percentSpin.setValue(100)
 
+        # 文本水印设置
+        self.wmTextEdit = QtWidgets.QLineEdit()
+        self.wmFontCombo = QtWidgets.QFontComboBox()
+        self.wmFontSizeSpin = QtWidgets.QSpinBox()
+        self.wmFontSizeSpin.setRange(6, 300)
+        self.wmFontSizeSpin.setValue(32)
+        self.wmBoldCheck = QtWidgets.QCheckBox("粗体")
+        self.wmItalicCheck = QtWidgets.QCheckBox("斜体")
+        self.wmColorBtn = QtWidgets.QPushButton("选择颜色")
+        self.wmColorPreview = QtWidgets.QLabel()
+        self.wmColorPreview.setFixedSize(40, 20)
+        self._wmColor = QtGui.QColor(255, 255, 255, 128)
+        self._update_wm_color_preview()
+        self.wmOpacitySlider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
+        self.wmOpacitySlider.setRange(0, 100)
+        self.wmOpacitySlider.setValue(50)
+        self.wmOpacityLabel = QtWidgets.QLabel("透明度: 50%")
+        self.wmShadowCheck = QtWidgets.QCheckBox("阴影")
+        self.wmOutlineCheck = QtWidgets.QCheckBox("描边")
+
         self.importFilesBtn = QtWidgets.QPushButton("导入图片…")
         self.importFolderBtn = QtWidgets.QPushButton("导入文件夹…")
         self.clearBtn = QtWidgets.QPushButton("清空列表")
@@ -197,6 +217,36 @@ class MainWindow(QtWidgets.QMainWindow):
         resizeGroup.setLayout(resizeLay)
         form.addRow(resizeGroup)
 
+        # 文本水印分组
+        wmGroup = QtWidgets.QGroupBox("文本水印")
+        wmLay = QtWidgets.QGridLayout()
+        wmLay.addWidget(QtWidgets.QLabel("文本:"), 0, 0)
+        wmLay.addWidget(self.wmTextEdit, 0, 1, 1, 3)
+        wmLay.addWidget(QtWidgets.QLabel("字体:"), 1, 0)
+        wmLay.addWidget(self.wmFontCombo, 1, 1, 1, 3)
+        wmLay.addWidget(QtWidgets.QLabel("字号:"), 2, 0)
+        wmLay.addWidget(self.wmFontSizeSpin, 2, 1)
+        wmLay.addWidget(self.wmBoldCheck, 2, 2)
+        wmLay.addWidget(self.wmItalicCheck, 2, 3)
+        colorRow = QtWidgets.QHBoxLayout()
+        colorRow.addWidget(self.wmColorBtn)
+        colorRow.addWidget(self.wmColorPreview)
+        colorRow.addStretch(1)
+        wmLay.addWidget(QtWidgets.QLabel("颜色:"), 3, 0)
+        wmLay.addLayout(colorRow, 3, 1, 1, 3)
+        opRow = QtWidgets.QHBoxLayout()
+        opRow.addWidget(self.wmOpacitySlider, 1)
+        opRow.addWidget(self.wmOpacityLabel)
+        wmLay.addWidget(QtWidgets.QLabel("透明度:"), 4, 0)
+        wmLay.addLayout(opRow, 4, 1, 1, 3)
+        shpRow = QtWidgets.QHBoxLayout()
+        shpRow.addWidget(self.wmShadowCheck)
+        shpRow.addWidget(self.wmOutlineCheck)
+        shpRow.addStretch(1)
+        wmLay.addLayout(shpRow, 5, 1, 1, 3)
+        wmGroup.setLayout(wmLay)
+        form.addRow(wmGroup)
+
         # 操作按钮
         btnRow = QtWidgets.QHBoxLayout()
         btnRow.addWidget(self.importFilesBtn)
@@ -226,6 +276,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self.exportBtn.clicked.connect(self._export)
         self.jpegQualitySlider.valueChanged.connect(lambda v: self.jpegQualityLabel.setText(f"JPEG 质量: {v}"))
         self.formatCombo.currentTextChanged.connect(self._on_format_changed)
+        self.wmOpacitySlider.valueChanged.connect(self._on_opacity_changed)
+        self.wmColorBtn.clicked.connect(self._choose_wm_color)
         self._on_format_changed(self.formatCombo.currentText())
 
     def _on_format_changed(self, fmt: str) -> None:
@@ -304,6 +356,14 @@ class MainWindow(QtWidgets.QMainWindow):
             naming_rule=naming,
             resize_mode=resize_mode,
             resize_value=resize_value,
+            wm_text=self.wmTextEdit.text(),
+            wm_font_family=self.wmFontCombo.currentFont().family(),
+            wm_font_size=int(self.wmFontSizeSpin.value()),
+            wm_bold=self.wmBoldCheck.isChecked(),
+            wm_italic=self.wmItalicCheck.isChecked(),
+            wm_color_rgba=(self._wmColor.red(), self._wmColor.green(), self._wmColor.blue(), self._wmColor.alpha()),
+            wm_shadow=self.wmShadowCheck.isChecked(),
+            wm_outline=self.wmOutlineCheck.isChecked(),
         )
 
     def _export(self) -> None:
@@ -319,6 +379,25 @@ class MainWindow(QtWidgets.QMainWindow):
             QtWidgets.QMessageBox.critical(self, "错误", f"导出失败: {e}")
         finally:
             self.exportBtn.setEnabled(True)
+
+    def _on_opacity_changed(self, v: int) -> None:
+        self.wmOpacityLabel.setText(f"透明度: {v}%")
+        # 同步透明度到颜色 alpha
+        self._wmColor.setAlpha(int(v / 100 * 255))
+        self._update_wm_color_preview()
+
+    def _choose_wm_color(self) -> None:
+        color = QtWidgets.QColorDialog.getColor(self._wmColor, self, "选择文本颜色")
+        if color.isValid():
+            # 保留当前透明度
+            color.setAlpha(self._wmColor.alpha())
+            self._wmColor = color
+            self._update_wm_color_preview()
+
+    def _update_wm_color_preview(self) -> None:
+        pix = QtGui.QPixmap(self.wmColorPreview.width(), self.wmColorPreview.height())
+        pix.fill(self._wmColor)
+        self.wmColorPreview.setPixmap(pix)
 
 
 class WatermarkApp:
