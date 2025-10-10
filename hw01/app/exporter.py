@@ -40,6 +40,11 @@ class ExportSettings:
     # which watermark to use
     wm_use_text: bool = True
     wm_use_image: bool = True
+    # per-layer manual positions (normalized top-left)
+    text_manual_enabled: bool = False
+    image_manual_enabled: bool = False
+    text_manual_pos_norm: Tuple[float, float] = (0.8, 0.8)
+    image_manual_pos_norm: Tuple[float, float] = (0.8, 0.8)
 
 
 class Exporter:
@@ -146,7 +151,11 @@ class Exporter:
 
         bx, by = base.size
         ox, oy = overlay.size
-        pos = self._compute_position(bx, by, ox, oy)
+        # choose position: use text-specific manual if enabled
+        if self.settings.text_manual_enabled:
+            pos = self._compute_manual_position(bx, by, ox, oy, self.settings.text_manual_pos_norm)
+        else:
+            pos = self._compute_position(bx, by, ox, oy)
         base.alpha_composite(overlay, dest=pos)
         return base
 
@@ -189,7 +198,11 @@ class Exporter:
                     base = img.copy()
                 bx, by = base.size
                 wx, wy = wm.size
-                pos = self._compute_position(bx, by, wx, wy)
+                # choose position: use image-specific manual if enabled
+                if self.settings.image_manual_enabled:
+                    pos = self._compute_manual_position(bx, by, wx, wy, self.settings.image_manual_pos_norm)
+                else:
+                    pos = self._compute_position(bx, by, wx, wy)
                 base.alpha_composite(wm, dest=pos)
                 return base
         except Exception:
@@ -200,13 +213,9 @@ class Exporter:
         mode = self.settings.position_mode
         margin = max(8, int(min(bw, bh) * 0.01))
         if mode == "manual":
+            # fallback manual for both when per-layer not enabled
             nx, ny = self.settings.manual_pos_norm
-            x = int(max(0, min(1.0, nx)) * bw)
-            y = int(max(0, min(1.0, ny)) * bh)
-            # clamp to keep fully visible
-            x = max(0, min(bw - ow, x))
-            y = max(0, min(bh - oh, y))
-            return (x, y)
+            return self._compute_manual_position(bw, bh, ow, oh, (nx, ny))
         key = (self.settings.preset_position or "bottom-right").lower()
         # map keys to anchor positions
         anchors = {
@@ -221,5 +230,13 @@ class Exporter:
             "bottom-right": (bw - ow - margin, bh - oh - margin),
         }
         return anchors.get(key, anchors["bottom-right"])
+
+    def _compute_manual_position(self, bw: int, bh: int, ow: int, oh: int, norm: Tuple[float, float]) -> Tuple[int, int]:
+        nx, ny = norm
+        x = int(max(0, min(1.0, nx)) * bw)
+        y = int(max(0, min(1.0, ny)) * bh)
+        x = max(0, min(bw - ow, x))
+        y = max(0, min(bh - oh, y))
+        return (x, y)
 
 

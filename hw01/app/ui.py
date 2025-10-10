@@ -114,7 +114,15 @@ class PreviewCanvas(QtWidgets.QWidget):
         self._settings: Optional[ExportSettings] = None
         self._manual = False
         self._manualNorm: Tuple[float, float] = (0.8, 0.8)
-        self._overlayRectPx: QtCore.QRect = QtCore.QRect(0, 0, 0, 0)
+        # per-layer manual flags and positions
+        self._textManual: bool = False
+        self._imageManual: bool = False
+        self._textNorm: Tuple[float, float] = (0.8, 0.8)
+        self._imageNorm: Tuple[float, float] = (0.8, 0.8)
+        # hit rects and dragging state
+        self._textRectPx: QtCore.QRect = QtCore.QRect(0, 0, 0, 0)
+        self._imageRectPx: QtCore.QRect = QtCore.QRect(0, 0, 0, 0)
+        self._dragTarget: Optional[str] = None  # 'text' | 'image'
         self._lastMousePos: Optional[QtCore.QPoint] = None
 
     def set_base_image(self, path: str) -> None:
@@ -165,59 +173,85 @@ class PreviewCanvas(QtWidgets.QWidget):
             painter.end()
             return
 
-        overlay = self._build_overlay_qimage()
-        if overlay.isNull():
+        imgLayer, textLayer = self._build_layers()
+        if (imgLayer is None or imgLayer.isNull()) and (textLayer is None or textLayer.isNull()):
             painter.end()
             return
         rotation = self._settings.rotation_deg if self._settings else 0.0
-        pm = QtGui.QPixmap.fromImage(overlay)
-        if abs(rotation) > 0.01:
-            transform = QtGui.QTransform()
-            transform.rotate(rotation)
-            pm = pm.transformed(transform, QtCore.Qt.SmoothTransformation)
-
         bx = self._scaledBase.width()
         by = self._scaledBase.height()
-        ox = pm.width()
-        oy = pm.height()
-        if self._manual:
-            nx, ny = self._manualNorm
-            px = int(max(0.0, min(1.0, nx)) * bx)
-            py = int(max(0.0, min(1.0, ny)) * by)
-            px = max(0, min(bx - ox, px))
-            py = max(0, min(by - oy, py))
-        else:
-            margin = max(8, int(min(bx, by) * 0.01))
-            key = (self._settings.preset_position if self._settings else "bottom-right").lower()
+
+        def rotate_pm(qimg: Optional[QtGui.QImage]) -> Optional[QtGui.QPixmap]:
+            if qimg is None or qimg.isNull():
+                return None
+            pm = QtGui.QPixmap.fromImage(qimg)
+            if abs(rotation) > 0.01:
+                transform = QtGui.QTransform()
+                transform.rotate(rotation)
+                pm = pm.transformed(transform, QtCore.Qt.SmoothTransformation)
+            return pm
+
+        imgPm = rotate_pm(imgLayer)
+        textPm = rotate_pm(textLayer)
+
+        margin = max(8, int(min(bx, by) * 0.01))
+        key = (self._settings.preset_position if self._settings else "bottom-right").lower()
+
+        def compute_pos(ow: int, oh: int, which: str) -> Tuple[int, int]:
+            if self._manual or (which == 'image' and self._imageManual) or (which == 'text' and self._textManual):
+                nx, ny = (
+                    self._imageNorm if which == 'image' else self._textNorm
+                ) if (which == 'image' and self._imageManual) or (which == 'text' and self._textManual) else self._manualNorm
+                px = int(max(0.0, min(1.0, nx)) * bx)
+                py = int(max(0.0, min(1.0, ny)) * by)
+                px = max(0, min(bx - ow, px))
+                py = max(0, min(by - oh, py))
+                return (px, py)
             anchors = {
                 "top-left": (margin, margin),
-                "top-center": ((bx - ox) // 2, margin),
-                "top-right": (bx - ox - margin, margin),
-                "center-left": (margin, (by - oy) // 2),
-                "center": ((bx - ox) // 2, (by - oy) // 2),
-                "center-right": (bx - ox - margin, (by - oy) // 2),
-                "bottom-left": (margin, by - oy - margin),
-                "bottom-center": ((bx - ox) // 2, by - oy - margin),
-                "bottom-right": (bx - ox - margin, by - oy - margin),
+                "top-center": ((bx - ow) // 2, margin),
+                "top-right": (bx - ow - margin, margin),
+                "center-left": (margin, (by - oh) // 2),
+                "center": ((bx - ow) // 2, (by - oh) // 2),
+                "center-right": (bx - ow - margin, (by - oh) // 2),
+                "bottom-left": (margin, by - oh - margin),
+                "bottom-center": ((bx - ow) // 2, by - oh - margin),
+                "bottom-right": (bx - ow - margin, by - oh - margin),
             }
-            px, py = anchors.get(key, anchors["bottom-right"])
+            return anchors.get(key, anchors["bottom-right"])
 
-        drawX = (self.width() - bx) // 2 + px
-        drawY = (self.height() - by) // 2 + py
-        self._overlayRectPx = QtCore.QRect(drawX, drawY, ox, oy)
-        painter.drawPixmap(drawX, drawY, pm)
+        baseX = (self.width() - bx) // 2
+        baseY = (self.height() - by) // 2
+        if imgPm is not None:
+            ow, oh = imgPm.width(), imgPm.height()
+            px, py = compute_pos(ow, oh, 'image')
+            drawX = baseX + px
+            drawY = baseY + py
+            self._imageRectPx = QtCore.QRect(drawX, drawY, ow, oh)
+            painter.drawPixmap(drawX, drawY, imgPm)
+        else:
+            self._imageRectPx = QtCore.QRect(0, 0, 0, 0)
+
+        if textPm is not None:
+            ow, oh = textPm.width(), textPm.height()
+            px, py = compute_pos(ow, oh, 'text')
+            drawX = baseX + px
+            drawY = baseY + py
+            self._textRectPx = QtCore.QRect(drawX, drawY, ow, oh)
+            painter.drawPixmap(drawX, drawY, textPm)
+        else:
+            self._textRectPx = QtCore.QRect(0, 0, 0, 0)
         painter.end()
 
-    def _build_overlay_qimage(self) -> QtGui.QImage:
-        # 同时合成图片与文本水印；文本在上层
+    def _build_layers(self) -> Tuple[Optional[QtGui.QImage], Optional[QtGui.QImage]]:
         if not self._settings:
-            return QtGui.QImage()
+            return None, None
         show_image = getattr(self._settings, 'wm_use_image', True)
         show_text = getattr(self._settings, 'wm_use_text', True)
 
-        layers: List[QtGui.QImage] = []
+        img_layer: Optional[QtGui.QImage] = None
+        text_layer: Optional[QtGui.QImage] = None
 
-        # 图片水印层
         if show_image:
             p = (self._settings.img_wm_path or "").strip()
             if p and os.path.isfile(p):
@@ -238,12 +272,11 @@ class PreviewCanvas(QtWidgets.QWidget):
                         p2.drawImage(0, 0, img)
                         p2.end()
                         img = tmp
-                    layers.append(img)
+                    img_layer = img
 
-        # 文本水印层
         if show_text and (self._settings.wm_text or "").strip():
             from .utils import render_text_overlay_qimage
-            text_q = render_text_overlay_qimage(
+            text_layer = render_text_overlay_qimage(
                 text=self._settings.wm_text,
                 font_family=self._settings.wm_font_family,
                 point_size=int(self._settings.wm_font_size),
@@ -253,37 +286,28 @@ class PreviewCanvas(QtWidgets.QWidget):
                 shadow=bool(self._settings.wm_shadow),
                 outline=bool(self._settings.wm_outline),
             )
-            layers.append(text_q)
 
-        if not layers:
-            return QtGui.QImage()
-
-        if len(layers) == 1:
-            return layers[0]
-
-        # 合并层：以最大宽高建立透明画布，先绘图片层，再绘文本层
-        max_w = max(layer.width() for layer in layers)
-        max_h = max(layer.height() for layer in layers)
-        canvas = QtGui.QImage(max_w, max_h, QtGui.QImage.Format_ARGB32_Premultiplied)
-        canvas.fill(QtCore.Qt.transparent)
-        painter = QtGui.QPainter(canvas)
-        for layer in layers:
-            painter.drawImage(0, 0, layer)
-        painter.end()
-        return canvas
+        return img_layer, text_layer
 
     def mousePressEvent(self, event: QtGui.QMouseEvent) -> None:
-        if event.button() == QtCore.Qt.LeftButton and self._overlayRectPx.contains(event.pos()):
-            self._lastMousePos = event.pos()
-            event.accept()
-            return
+        if event.button() == QtCore.Qt.LeftButton:
+            if self._textRectPx.contains(event.pos()):
+                self._dragTarget = 'text'
+                self._lastMousePos = event.pos()
+                event.accept()
+                return
+            if self._imageRectPx.contains(event.pos()):
+                self._dragTarget = 'image'
+                self._lastMousePos = event.pos()
+                event.accept()
+                return
         super().mousePressEvent(event)
 
     def mouseMoveEvent(self, event: QtGui.QMouseEvent) -> None:
-        if self._lastMousePos is not None:
+        if self._lastMousePos is not None and self._dragTarget is not None:
             delta = event.pos() - self._lastMousePos
             self._lastMousePos = event.pos()
-            r = self._overlayRectPx
+            r = self._textRectPx if self._dragTarget == 'text' else self._imageRectPx
             r.translate(delta)
             bx = self._scaledBase.width()
             by = self._scaledBase.height()
@@ -291,13 +315,20 @@ class PreviewCanvas(QtWidgets.QWidget):
             baseY = (self.height() - by) // 2
             r.moveLeft(max(baseX, min(baseX + bx - r.width(), r.left())))
             r.moveTop(max(baseY, min(baseY + by - r.height(), r.top())))
-            self._overlayRectPx = r
+            if self._dragTarget == 'text':
+                self._textRectPx = r
+            else:
+                self._imageRectPx = r
             px = r.left() - baseX
             py = r.top() - baseY
             nx = px / max(1, bx)
             ny = py / max(1, by)
-            self._manual = True
-            self._manualNorm = (nx, ny)
+            if self._dragTarget == 'text':
+                self._textManual = True
+                self._textNorm = (nx, ny)
+            else:
+                self._imageManual = True
+                self._imageNorm = (nx, ny)
             self.manualPosChanged.emit(nx, ny)
             self.update()
             event.accept()
@@ -307,9 +338,33 @@ class PreviewCanvas(QtWidgets.QWidget):
     def mouseReleaseEvent(self, event: QtGui.QMouseEvent) -> None:
         if event.button() == QtCore.Qt.LeftButton and self._lastMousePos is not None:
             self._lastMousePos = None
+            self._dragTarget = None
             event.accept()
             return
         super().mouseReleaseEvent(event)
+
+    # getters for per-layer manual state
+    def is_text_manual(self) -> bool:
+        return self._textManual
+
+    def is_image_manual(self) -> bool:
+        return self._imageManual
+
+    def get_text_norm(self) -> Tuple[float, float]:
+        return self._textNorm
+
+    def get_image_norm(self) -> Tuple[float, float]:
+        return self._imageNorm
+
+    # reset helpers
+    def reset_text_manual(self) -> None:
+        self._textManual = False
+        # keep norm as-is; preset计算不使用该值
+        self.update()
+
+    def reset_image_manual(self) -> None:
+        self._imageManual = False
+        self.update()
 
 class MainWindow(QtWidgets.QMainWindow):
     def __init__(self) -> None:
@@ -726,6 +781,10 @@ class MainWindow(QtWidgets.QMainWindow):
             rotation_deg=float(getattr(self, "rotationSpin", QtWidgets.QSpinBox()).value() if hasattr(self, "rotationSpin") else 0),
             wm_use_text=self.useTextCheck.isChecked(),
             wm_use_image=self.useImageCheck.isChecked(),
+            text_manual_enabled=self.preview.is_text_manual(),
+            image_manual_enabled=self.preview.is_image_manual(),
+            text_manual_pos_norm=self.preview.get_text_norm(),
+            image_manual_pos_norm=self.preview.get_image_norm(),
         )
 
     def _export(self) -> None:
@@ -772,6 +831,9 @@ class MainWindow(QtWidgets.QMainWindow):
         # 切换为预设模式
         for b in getattr(self, "_posBtns", []):
             b.setChecked(b.text() == key)
+        # 文本水印遵循九宫格，重置其手动定位；图片水印保持原有状态
+        if hasattr(self.preview, 'reset_text_manual'):
+            self.preview.reset_text_manual()
         self.preview.set_manual(False)
         self._refresh_preview()
 
@@ -846,6 +908,10 @@ class MainWindow(QtWidgets.QMainWindow):
             rotation_deg=float(getattr(self, "rotationSpin", QtWidgets.QSpinBox()).value() if hasattr(self, "rotationSpin") else 0),
             wm_use_text=self.useTextCheck.isChecked(),
             wm_use_image=self.useImageCheck.isChecked(),
+            text_manual_enabled=self.preview.is_text_manual(),
+            image_manual_enabled=self.preview.is_image_manual(),
+            text_manual_pos_norm=self.preview.get_text_norm(),
+            image_manual_pos_norm=self.preview.get_image_norm(),
         )
         self.preview.apply_settings(settings)
 
