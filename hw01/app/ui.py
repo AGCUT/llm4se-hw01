@@ -99,6 +99,190 @@ class ImageListWidget(QtWidgets.QListWidget):
         self.filesChanged.emit()
 
 
+class PreviewCanvas(QtWidgets.QWidget):
+    manualPosChanged = QtCore.pyqtSignal(float, float)
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.setMinimumHeight(260)
+        self.setMouseTracking(True)
+        self._baseImage = QtGui.QImage()
+        self._scaledBase = QtGui.QImage()
+        self._settings: Optional[ExportSettings] = None
+        self._manual = False
+        self._manualNorm: Tuple[float, float] = (0.8, 0.8)
+        self._overlayRectPx: QtCore.QRect = QtCore.QRect(0, 0, 0, 0)
+        self._lastMousePos: Optional[QtCore.QPoint] = None
+
+    def set_base_image(self, path: str) -> None:
+        img = QtGui.QImage(path)
+        if not img.isNull():
+            self._baseImage = img
+            self._rescale()
+            self.update()
+
+    def is_manual(self) -> bool:
+        return self._manual
+
+    def set_manual(self, manual: bool) -> None:
+        self._manual = manual
+
+    def get_manual_norm(self) -> Tuple[float, float]:
+        return self._manualNorm
+
+    def apply_settings(self, settings: ExportSettings) -> None:
+        self._settings = settings
+        if settings.position_mode == "manual":
+            self._manual = True
+            self._manualNorm = settings.manual_pos_norm
+        self._rescale()
+        self.update()
+
+    def resizeEvent(self, event: QtGui.QResizeEvent) -> None:
+        self._rescale()
+        super().resizeEvent(event)
+
+    def _rescale(self) -> None:
+        if self._baseImage.isNull():
+            return
+        target = self.size()
+        self._scaledBase = self._baseImage.scaled(target, QtCore.Qt.KeepAspectRatio, QtCore.Qt.SmoothTransformation)
+
+    def paintEvent(self, event: QtGui.QPaintEvent) -> None:
+        painter = QtGui.QPainter(self)
+        painter.fillRect(self.rect(), self.palette().base())
+        if self._scaledBase.isNull():
+            painter.end()
+            return
+        x = (self.width() - self._scaledBase.width()) // 2
+        y = (self.height() - self._scaledBase.height()) // 2
+        painter.drawImage(x, y, self._scaledBase)
+
+        if not self._settings:
+            painter.end()
+            return
+
+        overlay = self._build_overlay_qimage()
+        if overlay.isNull():
+            painter.end()
+            return
+        rotation = self._settings.rotation_deg if self._settings else 0.0
+        pm = QtGui.QPixmap.fromImage(overlay)
+        if abs(rotation) > 0.01:
+            transform = QtGui.QTransform()
+            transform.rotate(rotation)
+            pm = pm.transformed(transform, QtCore.Qt.SmoothTransformation)
+
+        bx = self._scaledBase.width()
+        by = self._scaledBase.height()
+        ox = pm.width()
+        oy = pm.height()
+        if self._manual:
+            nx, ny = self._manualNorm
+            px = int(max(0.0, min(1.0, nx)) * bx)
+            py = int(max(0.0, min(1.0, ny)) * by)
+            px = max(0, min(bx - ox, px))
+            py = max(0, min(by - oy, py))
+        else:
+            margin = max(8, int(min(bx, by) * 0.01))
+            key = (self._settings.preset_position if self._settings else "bottom-right").lower()
+            anchors = {
+                "top-left": (margin, margin),
+                "top-center": ((bx - ox) // 2, margin),
+                "top-right": (bx - ox - margin, margin),
+                "center-left": (margin, (by - oy) // 2),
+                "center": ((bx - ox) // 2, (by - oy) // 2),
+                "center-right": (bx - ox - margin, (by - oy) // 2),
+                "bottom-left": (margin, by - oy - margin),
+                "bottom-center": ((bx - ox) // 2, by - oy - margin),
+                "bottom-right": (bx - ox - margin, by - oy - margin),
+            }
+            px, py = anchors.get(key, anchors["bottom-right"])
+
+        drawX = (self.width() - bx) // 2 + px
+        drawY = (self.height() - by) // 2 + py
+        self._overlayRectPx = QtCore.QRect(drawX, drawY, ox, oy)
+        painter.drawPixmap(drawX, drawY, pm)
+        painter.end()
+
+    def _build_overlay_qimage(self) -> QtGui.QImage:
+        # prefer image watermark for preview; else text
+        if not self._settings:
+            return QtGui.QImage()
+        p = (self._settings.img_wm_path or "").strip()
+        if p and os.path.isfile(p):
+            img = QtGui.QImage(p)
+            if not img.isNull():
+                bx = max(1, self._scaledBase.width())
+                mode, percent, w, h = self._settings.img_wm_scale
+                if mode == "percent" and percent:
+                    target_w = max(1, int(bx * (percent / 100.0)))
+                    img = img.scaledToWidth(target_w, QtCore.Qt.SmoothTransformation)
+                elif mode == "size" and w and h:
+                    img = img.scaled(int(w), int(h), QtCore.Qt.IgnoreAspectRatio, QtCore.Qt.SmoothTransformation)
+                if 0 <= self._settings.img_wm_opacity < 100:
+                    tmp = QtGui.QImage(img.size(), QtGui.QImage.Format_ARGB32_Premultiplied)
+                    tmp.fill(QtCore.Qt.transparent)
+                    p2 = QtGui.QPainter(tmp)
+                    p2.setOpacity(self._settings.img_wm_opacity / 100.0)
+                    p2.drawImage(0, 0, img)
+                    p2.end()
+                    return tmp
+                return img
+        # text overlay
+        if (self._settings.wm_text or "").strip():
+            from .utils import render_text_overlay_qimage
+            return render_text_overlay_qimage(
+                text=self._settings.wm_text,
+                font_family=self._settings.wm_font_family,
+                point_size=int(self._settings.wm_font_size),
+                bold=bool(self._settings.wm_bold),
+                italic=bool(self._settings.wm_italic),
+                rgba=self._settings.wm_color_rgba,
+                shadow=bool(self._settings.wm_shadow),
+                outline=bool(self._settings.wm_outline),
+            )
+        return QtGui.QImage()
+
+    def mousePressEvent(self, event: QtGui.QMouseEvent) -> None:
+        if event.button() == QtCore.Qt.LeftButton and self._overlayRectPx.contains(event.pos()):
+            self._lastMousePos = event.pos()
+            event.accept()
+            return
+        super().mousePressEvent(event)
+
+    def mouseMoveEvent(self, event: QtGui.QMouseEvent) -> None:
+        if self._lastMousePos is not None:
+            delta = event.pos() - self._lastMousePos
+            self._lastMousePos = event.pos()
+            r = self._overlayRectPx
+            r.translate(delta)
+            bx = self._scaledBase.width()
+            by = self._scaledBase.height()
+            baseX = (self.width() - bx) // 2
+            baseY = (self.height() - by) // 2
+            r.moveLeft(max(baseX, min(baseX + bx - r.width(), r.left())))
+            r.moveTop(max(baseY, min(baseY + by - r.height(), r.top())))
+            self._overlayRectPx = r
+            px = r.left() - baseX
+            py = r.top() - baseY
+            nx = px / max(1, bx)
+            ny = py / max(1, by)
+            self._manual = True
+            self._manualNorm = (nx, ny)
+            self.manualPosChanged.emit(nx, ny)
+            self.update()
+            event.accept()
+            return
+        super().mouseMoveEvent(event)
+
+    def mouseReleaseEvent(self, event: QtGui.QMouseEvent) -> None:
+        if event.button() == QtCore.Qt.LeftButton and self._lastMousePos is not None:
+            self._lastMousePos = None
+            event.accept()
+            return
+        super().mouseReleaseEvent(event)
+
 class MainWindow(QtWidgets.QMainWindow):
     def __init__(self) -> None:
         super().__init__()
@@ -106,6 +290,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.resize(1100, 700)
 
         self.imageList = ImageListWidget()
+        self.preview = PreviewCanvas()
 
         self.outputDirEdit = QtWidgets.QLineEdit()
         self.outputDirBtn = QtWidgets.QPushButton("选择输出文件夹")
@@ -189,7 +374,12 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def _build_layout(self) -> None:
         splitter = QtWidgets.QSplitter()
-        splitter.addWidget(self.imageList)
+        leftSplit = QtWidgets.QSplitter(QtCore.Qt.Vertical)
+        leftSplit.addWidget(self.preview)
+        leftSplit.addWidget(self.imageList)
+        leftSplit.setStretchFactor(0, 3)
+        leftSplit.setStretchFactor(1, 2)
+        splitter.addWidget(leftSplit)
 
         right = QtWidgets.QWidget()
         form = QtWidgets.QFormLayout()
@@ -267,6 +457,40 @@ class MainWindow(QtWidgets.QMainWindow):
         wmGroup.setLayout(wmLay)
         form.addRow(wmGroup)
 
+        # 位置与旋转
+        posGroup = QtWidgets.QGroupBox("位置与旋转")
+        posLay = QtWidgets.QGridLayout()
+        gridLay = QtWidgets.QGridLayout()
+        self._posBtns: List[QtWidgets.QPushButton] = []
+        posKeys = [
+            ("top-left", 0, 0), ("top-center", 0, 1), ("top-right", 0, 2),
+            ("center-left", 1, 0), ("center", 1, 1), ("center-right", 1, 2),
+            ("bottom-left", 2, 0), ("bottom-center", 2, 1), ("bottom-right", 2, 2),
+        ]
+        self._presetKey = "bottom-right"
+        for key, r, c in posKeys:
+            btn = QtWidgets.QPushButton(key)
+            btn.setCheckable(True)
+            if key == self._presetKey:
+                btn.setChecked(True)
+            btn.clicked.connect(lambda checked, k=key: self._on_preset_clicked(k))
+            self._posBtns.append(btn)
+            gridLay.addWidget(btn, r, c)
+        posLay.addLayout(gridLay, 0, 0, 1, 3)
+        self.rotationSlider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
+        self.rotationSlider.setRange(0, 360)
+        self.rotationSlider.setValue(0)
+        self.rotationSpin = QtWidgets.QSpinBox()
+        self.rotationSpin.setRange(0, 360)
+        self.rotationSpin.setValue(0)
+        rotRow = QtWidgets.QHBoxLayout()
+        rotRow.addWidget(self.rotationSlider, 1)
+        rotRow.addWidget(self.rotationSpin)
+        posLay.addWidget(QtWidgets.QLabel("旋转 (度):"), 1, 0)
+        posLay.addLayout(rotRow, 1, 1, 1, 2)
+        posGroup.setLayout(posLay)
+        form.addRow(posGroup)
+
         # 图片水印分组
         imgWmGroup = QtWidgets.QGroupBox("图片水印（支持 PNG 透明）")
         imgLay = QtWidgets.QGridLayout()
@@ -322,9 +546,16 @@ class MainWindow(QtWidgets.QMainWindow):
         self.formatCombo.currentTextChanged.connect(self._on_format_changed)
         self.wmOpacitySlider.valueChanged.connect(self._on_opacity_changed)
         self.wmColorBtn.clicked.connect(self._choose_wm_color)
+        # 新增：旋转与预览联动、拖拽联动
+        self.rotationSlider.valueChanged.connect(self.rotationSpin.setValue)
+        self.rotationSpin.valueChanged.connect(self.rotationSlider.setValue)
+        self.rotationSpin.valueChanged.connect(lambda _: self._refresh_preview())
+        self.imageList.itemSelectionChanged.connect(self._on_list_selection_changed)
+        self.preview.manualPosChanged.connect(lambda _x, _y: self._on_manual_pos_changed())
         self.imgWmOpacitySlider.valueChanged.connect(lambda v: self.imgWmOpacityLabel.setText(f"透明度: {v}%"))
         self.imgWmBrowseBtn.clicked.connect(self._browse_img_wm)
         self._on_format_changed(self.formatCombo.currentText())
+        self._refresh_preview()
 
     def _on_format_changed(self, fmt: str) -> None:
         is_jpeg = fmt.upper() == "JPEG"
@@ -402,6 +633,10 @@ class MainWindow(QtWidgets.QMainWindow):
             img_wm_scale = ("size", None, int(self.imgWmWidthSpin.value()), int(self.imgWmHeightSpin.value()))
         img_wm_opacity = int(self.imgWmOpacitySlider.value())
 
+        position_mode = "manual" if self.preview.is_manual() else "preset"
+        preset_key = getattr(self, "_presetKey", "bottom-right")
+        manual_norm = self.preview.get_manual_norm()
+
         return ExportSettings(
             input_paths=input_paths,
             output_dir=output_dir,
@@ -421,6 +656,10 @@ class MainWindow(QtWidgets.QMainWindow):
             img_wm_path=img_wm_path,
             img_wm_scale=img_wm_scale,
             img_wm_opacity=img_wm_opacity,
+            position_mode=position_mode,
+            preset_position=preset_key,
+            manual_pos_norm=manual_norm,
+            rotation_deg=float(getattr(self, "rotationSpin", QtWidgets.QSpinBox()).value() if hasattr(self, "rotationSpin") else 0),
         )
 
     def _export(self) -> None:
@@ -461,6 +700,86 @@ class MainWindow(QtWidgets.QMainWindow):
         path, _ = QtWidgets.QFileDialog.getOpenFileName(self, "选择图片水印", "", filter_str)
         if path:
             self.imgWmPathEdit.setText(path)
+
+    def _on_preset_clicked(self, key: str) -> None:
+        self._presetKey = key
+        # 切换为预设模式
+        for b in getattr(self, "_posBtns", []):
+            b.setChecked(b.text() == key)
+        self.preview.set_manual(False)
+        self._refresh_preview()
+
+    def _on_list_selection_changed(self) -> None:
+        paths = self.imageList.get_all_paths()
+        row = self.imageList.currentRow()
+        path = paths[row] if 0 <= row < len(paths) else (paths[0] if paths else "")
+        if path and os.path.isfile(path):
+            self.preview.set_base_image(path)
+        self._refresh_preview()
+
+    def _on_manual_pos_changed(self) -> None:
+        # 预览中拖拽后，切换为手动定位
+        self.preview.set_manual(True)
+        self._refresh_preview()
+
+    def _refresh_preview(self) -> None:
+        # 构造一个用于预览的设置，避免阻塞性的校验和弹窗
+        paths = self.imageList.get_all_paths()
+        if not paths:
+            return
+        # 确保有基图
+        if self.preview._baseImage.isNull():
+            sel = self.imageList.currentRow()
+            path = paths[sel] if 0 <= sel < len(paths) else paths[0]
+            if path and os.path.isfile(path):
+                self.preview.set_base_image(path)
+
+        fmt = self.formatCombo.currentText().upper()
+        resize_mode, resize_value = self._collect_resize()
+
+        if self.namingPrefixRadio.isChecked():
+            naming = ("prefix", self.prefixEdit.text())
+        elif self.namingSuffixRadio.isChecked():
+            naming = ("suffix", self.suffixEdit.text())
+        else:
+            naming = ("keep", "")
+
+        img_wm_path = self.imgWmPathEdit.text().strip() if hasattr(self, 'imgWmPathEdit') else ""
+        if hasattr(self, 'imgWmScaleByPercent') and self.imgWmScaleByPercent.isChecked():
+            img_wm_scale = ("percent", int(self.imgWmPercentSpin.value()), None, None)
+        else:
+            img_wm_scale = ("size", None, int(self.imgWmWidthSpin.value()), int(self.imgWmHeightSpin.value())) if hasattr(self, 'imgWmWidthSpin') else ("percent", 30, None, None)
+        img_wm_opacity = int(self.imgWmOpacitySlider.value()) if hasattr(self, 'imgWmOpacitySlider') else 60
+
+        position_mode = "manual" if self.preview.is_manual() else "preset"
+        preset_key = getattr(self, "_presetKey", "bottom-right")
+        manual_norm = self.preview.get_manual_norm()
+
+        settings = ExportSettings(
+            input_paths=paths,
+            output_dir=self.outputDirEdit.text().strip() or os.getcwd(),
+            output_format=fmt,
+            jpeg_quality=int(self.jpegQualitySlider.value()) if fmt == "JPEG" else None,
+            naming_rule=naming,
+            resize_mode=resize_mode,
+            resize_value=resize_value,
+            wm_text=self.wmTextEdit.text(),
+            wm_font_family=self.wmFontCombo.currentFont().family(),
+            wm_font_size=int(self.wmFontSizeSpin.value()),
+            wm_bold=self.wmBoldCheck.isChecked(),
+            wm_italic=self.wmItalicCheck.isChecked(),
+            wm_color_rgba=(self._wmColor.red(), self._wmColor.green(), self._wmColor.blue(), self._wmColor.alpha()),
+            wm_shadow=self.wmShadowCheck.isChecked(),
+            wm_outline=self.wmOutlineCheck.isChecked(),
+            img_wm_path=img_wm_path,
+            img_wm_scale=img_wm_scale,
+            img_wm_opacity=img_wm_opacity,
+            position_mode=position_mode,
+            preset_position=preset_key,
+            manual_pos_norm=manual_norm,
+            rotation_deg=float(getattr(self, "rotationSpin", QtWidgets.QSpinBox()).value() if hasattr(self, "rotationSpin") else 0),
+        )
+        self.preview.apply_settings(settings)
 
 
 class WatermarkApp:

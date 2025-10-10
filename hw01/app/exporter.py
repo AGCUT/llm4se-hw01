@@ -32,6 +32,11 @@ class ExportSettings:
     # (mode, percent, width, height) where mode in {"percent","size"}
     img_wm_scale: Tuple[str, Optional[int], Optional[int], Optional[int]] = ("percent", 30, None, None)
     img_wm_opacity: int = 60
+    # layout & rotation
+    position_mode: str = "preset"  # "preset" | "manual"
+    preset_position: str = "bottom-right"  # 9-grid keys
+    manual_pos_norm: Tuple[float, float] = (0.8, 0.8)  # top-left normalized (0..1)
+    rotation_deg: float = 0.0
 
 
 class Exporter:
@@ -128,11 +133,14 @@ class Exporter:
         else:
             base = img.copy()
 
+        # rotate
+        rotation = float(self.settings.rotation_deg or 0)
+        if abs(rotation) > 0.01:
+            overlay = overlay.rotate(-rotation, resample=Image.BICUBIC, expand=True)
+
         bx, by = base.size
         ox, oy = overlay.size
-        # place at bottom-right with margin
-        margin = max(8, int(min(bx, by) * 0.01))
-        pos = (max(0, bx - ox - margin), max(0, by - oy - margin))
+        pos = self._compute_position(bx, by, ox, oy)
         base.alpha_composite(overlay, dest=pos)
         return base
 
@@ -161,19 +169,49 @@ class Exporter:
                     alpha = alpha.point(lambda p: p * (opacity / 100.0))
                     wm.putalpha(alpha)
 
-                # compose bottom-right
+                # rotate
+                rotation = float(self.settings.rotation_deg or 0)
+                if abs(rotation) > 0.01:
+                    wm = wm.rotate(-rotation, resample=Image.BICUBIC, expand=True)
+
+                # compose by position
                 if img.mode != "RGBA":
                     base = img.convert("RGBA")
                 else:
                     base = img.copy()
                 bx, by = base.size
                 wx, wy = wm.size
-                margin = max(8, int(min(bx, by) * 0.01))
-                pos = (max(0, bx - wx - margin), max(0, by - wy - margin))
+                pos = self._compute_position(bx, by, wx, wy)
                 base.alpha_composite(wm, dest=pos)
                 return base
         except Exception:
             return img
         return img
+
+    def _compute_position(self, bw: int, bh: int, ow: int, oh: int) -> Tuple[int, int]:
+        mode = self.settings.position_mode
+        margin = max(8, int(min(bw, bh) * 0.01))
+        if mode == "manual":
+            nx, ny = self.settings.manual_pos_norm
+            x = int(max(0, min(1.0, nx)) * bw)
+            y = int(max(0, min(1.0, ny)) * bh)
+            # clamp to keep fully visible
+            x = max(0, min(bw - ow, x))
+            y = max(0, min(bh - oh, y))
+            return (x, y)
+        key = (self.settings.preset_position or "bottom-right").lower()
+        # map keys to anchor positions
+        anchors = {
+            "top-left": (margin, margin),
+            "top-center": ((bw - ow) // 2, margin),
+            "top-right": (bw - ow - margin, margin),
+            "center-left": (margin, (bh - oh) // 2),
+            "center": ((bw - ow) // 2, (bh - oh) // 2),
+            "center-right": (bw - ow - margin, (bh - oh) // 2),
+            "bottom-left": (margin, bh - oh - margin),
+            "bottom-center": ((bw - ow) // 2, bh - oh - margin),
+            "bottom-right": (bw - ow - margin, bh - oh - margin),
+        }
+        return anchors.get(key, anchors["bottom-right"])
 
 
