@@ -375,6 +375,11 @@ class MainWindow(QtWidgets.QMainWindow):
         self.imageList = ImageListWidget()
         self.preview = PreviewCanvas()
 
+        # 模板存储路径
+        self._tpl_dir = os.path.join(os.path.expanduser("~"), ".watermark_tool", "templates")
+        os.makedirs(self._tpl_dir, exist_ok=True)
+        self._last_file = os.path.join(self._tpl_dir, "last.json")
+
         self.outputDirEdit = QtWidgets.QLineEdit()
         self.outputDirBtn = QtWidgets.QPushButton("选择输出文件夹")
         self.formatCombo = QtWidgets.QComboBox()
@@ -412,6 +417,13 @@ class MainWindow(QtWidgets.QMainWindow):
         self.useImageCheck = QtWidgets.QCheckBox("使用图片水印")
         self.useTextCheck.setChecked(True)
         self.useImageCheck.setChecked(True)
+
+        # 模板管理
+        self.tplNameEdit = QtWidgets.QLineEdit()
+        self.tplSaveBtn = QtWidgets.QPushButton("保存模板")
+        self.tplListCombo = QtWidgets.QComboBox()
+        self.tplLoadBtn = QtWidgets.QPushButton("载入")
+        self.tplDeleteBtn = QtWidgets.QPushButton("删除")
 
         # 文本水印设置
         self.wmTextEdit = QtWidgets.QLineEdit()
@@ -482,6 +494,23 @@ class MainWindow(QtWidgets.QMainWindow):
 
         # 输出格式
         form.addRow("输出格式:", self.formatCombo)
+
+        # 模板管理
+        tplRow1 = QtWidgets.QHBoxLayout()
+        tplRow1.addWidget(QtWidgets.QLabel("模板名:"))
+        tplRow1.addWidget(self.tplNameEdit, 1)
+        tplRow1.addWidget(self.tplSaveBtn)
+        tplRow2 = QtWidgets.QHBoxLayout()
+        tplRow2.addWidget(QtWidgets.QLabel("模板列表:"))
+        tplRow2.addWidget(self.tplListCombo, 1)
+        tplRow2.addWidget(self.tplLoadBtn)
+        tplRow2.addWidget(self.tplDeleteBtn)
+        tplBox = QtWidgets.QGroupBox("模板管理")
+        v = QtWidgets.QVBoxLayout()
+        v.addLayout(tplRow1)
+        v.addLayout(tplRow2)
+        tplBox.setLayout(v)
+        form.addRow(tplBox)
 
         # 命名规则
         nameGroup = QtWidgets.QGroupBox("命名规则")
@@ -673,6 +702,11 @@ class MainWindow(QtWidgets.QMainWindow):
         # 类型选择联动
         self.useTextCheck.toggled.connect(lambda _b: self._refresh_preview())
         self.useImageCheck.toggled.connect(lambda _b: self._refresh_preview())
+        # 模板事件
+        self.tplSaveBtn.clicked.connect(self._save_template_clicked)
+        self.tplLoadBtn.clicked.connect(self._load_template_clicked)
+        self.tplDeleteBtn.clicked.connect(self._delete_template_clicked)
+        self._reload_template_list()
         self._on_format_changed(self.formatCombo.currentText())
         self._refresh_preview()
 
@@ -915,12 +949,220 @@ class MainWindow(QtWidgets.QMainWindow):
         )
         self.preview.apply_settings(settings)
 
+    # ===== 模板管理逻辑 =====
+    def _collect_template_dict(self) -> dict:
+        # 收集与水印相关的全部设置（不含输入列表与输出目录）
+        fmt = self.formatCombo.currentText().upper()
+        resize_mode, resize_value = self._collect_resize()
+        img_wm_path = self.imgWmPathEdit.text().strip()
+        if self.imgWmScaleByPercent.isChecked():
+            img_wm_scale = ("percent", int(self.imgWmPercentSpin.value()), None, None)
+        else:
+            img_wm_scale = ("size", None, int(self.imgWmWidthSpin.value()), int(self.imgWmHeightSpin.value()))
+
+        data = {
+            "output_format": fmt,
+            "jpeg_quality": int(self.jpegQualitySlider.value()) if fmt == "JPEG" else None,
+            "naming_rule": (
+                "prefix", self.prefixEdit.text()
+            ) if self.namingPrefixRadio.isChecked() else (
+                ("suffix", self.suffixEdit.text()) if self.namingSuffixRadio.isChecked() else ("keep", "")
+            ),
+            "resize_mode": resize_mode,
+            "resize_value": resize_value,
+            "wm_text": self.wmTextEdit.text(),
+            "wm_font_family": self.wmFontCombo.currentFont().family(),
+            "wm_font_size": int(self.wmFontSizeSpin.value()),
+            "wm_bold": self.wmBoldCheck.isChecked(),
+            "wm_italic": self.wmItalicCheck.isChecked(),
+            "wm_color_rgba": (self._wmColor.red(), self._wmColor.green(), self._wmColor.blue(), self._wmColor.alpha()),
+            "wm_shadow": self.wmShadowCheck.isChecked(),
+            "wm_outline": self.wmOutlineCheck.isChecked(),
+            "img_wm_path": img_wm_path,
+            "img_wm_scale": img_wm_scale,
+            "img_wm_opacity": int(self.imgWmOpacitySlider.value()),
+            "position_mode": "manual" if self.preview.is_manual() else "preset",
+            "preset_position": getattr(self, "_presetKey", "bottom-right"),
+            "manual_pos_norm": self.preview.get_manual_norm(),
+            "rotation_deg": float(self.rotationSpin.value()),
+            "wm_use_text": self.useTextCheck.isChecked(),
+            "wm_use_image": self.useImageCheck.isChecked(),
+            "text_manual_enabled": self.preview.is_text_manual(),
+            "image_manual_enabled": self.preview.is_image_manual(),
+            "text_manual_pos_norm": self.preview.get_text_norm(),
+            "image_manual_pos_norm": self.preview.get_image_norm(),
+        }
+        return data
+
+    def _apply_template_dict(self, data: dict) -> None:
+        # 安全读取字段
+        def g(key, default=None):
+            return data.get(key, default)
+
+        fmt = g("output_format", "PNG")
+        idx = self.formatCombo.findText(fmt)
+        if idx >= 0:
+            self.formatCombo.setCurrentIndex(idx)
+        if fmt == "JPEG" and g("jpeg_quality") is not None:
+            self.jpegQualitySlider.setValue(int(g("jpeg_quality", 90)))
+
+        naming = g("naming_rule", ("keep", ""))
+        if naming and isinstance(naming, (list, tuple)):
+            rule, val = naming
+            if rule == "prefix":
+                self.namingPrefixRadio.setChecked(True)
+                self.prefixEdit.setText(str(val))
+            elif rule == "suffix":
+                self.namingSuffixRadio.setChecked(True)
+                self.suffixEdit.setText(str(val))
+            else:
+                self.namingKeepRadio.setChecked(True)
+
+        rm = g("resize_mode", "none")
+        if rm == "width":
+            self.resizeByWidthRadio.setChecked(True)
+            self.widthSpin.setValue(int(g("resize_value", self.widthSpin.value()) or self.widthSpin.value()))
+        elif rm == "height":
+            self.resizeByHeightRadio.setChecked(True)
+            self.heightSpin.setValue(int(g("resize_value", self.heightSpin.value()) or self.heightSpin.value()))
+        elif rm == "percent":
+            self.resizeByPercentRadio.setChecked(True)
+            self.percentSpin.setValue(int(g("resize_value", self.percentSpin.value()) or self.percentSpin.value()))
+        else:
+            self.resizeNoneRadio.setChecked(True)
+
+        self.wmTextEdit.setText(str(g("wm_text", "")))
+        # 字体
+        fam = g("wm_font_family", self.wmFontCombo.currentFont().family())
+        fidx = self.wmFontCombo.findText(fam)
+        if fidx >= 0:
+            self.wmFontCombo.setCurrentIndex(fidx)
+        self.wmFontSizeSpin.setValue(int(g("wm_font_size", self.wmFontSizeSpin.value())))
+        self.wmBoldCheck.setChecked(bool(g("wm_bold", self.wmBoldCheck.isChecked())))
+        self.wmItalicCheck.setChecked(bool(g("wm_italic", self.wmItalicCheck.isChecked())))
+        rgba = g("wm_color_rgba", (255, 255, 255, 128))
+        if isinstance(rgba, (list, tuple)) and len(rgba) == 4:
+            self._wmColor = QtGui.QColor(int(rgba[0]), int(rgba[1]), int(rgba[2]), int(rgba[3]))
+            self._update_wm_color_preview()
+            self.wmOpacitySlider.setValue(int(round(self._wmColor.alpha() / 255 * 100)))
+        self.wmShadowCheck.setChecked(bool(g("wm_shadow", False)))
+        self.wmOutlineCheck.setChecked(bool(g("wm_outline", False)))
+
+        self.imgWmPathEdit.setText(str(g("img_wm_path", "")))
+        scale = g("img_wm_scale", ("percent", 30, None, None))
+        if isinstance(scale, (list, tuple)) and scale:
+            mode = scale[0]
+            if mode == "percent":
+                self.imgWmScaleByPercent.setChecked(True)
+                self.imgWmPercentSpin.setValue(int(scale[1] or self.imgWmPercentSpin.value()))
+            else:
+                self.imgWmScaleBySize.setChecked(True)
+                self.imgWmWidthSpin.setValue(int(scale[2] or self.imgWmWidthSpin.value()))
+                self.imgWmHeightSpin.setValue(int(scale[3] or self.imgWmHeightSpin.value()))
+        self.imgWmOpacitySlider.setValue(int(g("img_wm_opacity", self.imgWmOpacitySlider.value())))
+
+        self.useTextCheck.setChecked(bool(g("wm_use_text", True)))
+        self.useImageCheck.setChecked(bool(g("wm_use_image", True)))
+
+        # 位置 & 旋转
+        self._presetKey = str(g("preset_position", getattr(self, "_presetKey", "bottom-right")))
+        for b in getattr(self, "_posBtns", []):
+            b.setChecked(b.text() == self._presetKey)
+        self.rotationSpin.setValue(int(g("rotation_deg", 0)))
+
+        # 手动定位（全局与分层）
+        pos_mode = g("position_mode", "preset")
+        self.preview.set_manual(pos_mode == "manual")
+        if pos_mode == "manual":
+            self.preview._manualNorm = tuple(g("manual_pos_norm", self.preview.get_manual_norm()))  # type: ignore
+        self.preview._textManual = bool(g("text_manual_enabled", self.preview.is_text_manual()))  # type: ignore
+        self.preview._imageManual = bool(g("image_manual_enabled", self.preview.is_image_manual()))  # type: ignore
+        self.preview._textNorm = tuple(g("text_manual_pos_norm", self.preview.get_text_norm()))  # type: ignore
+        self.preview._imageNorm = tuple(g("image_manual_pos_norm", self.preview.get_image_norm()))  # type: ignore
+
+        self._refresh_preview()
+
+    def _tpl_path(self, name: str) -> str:
+        safe = "".join(c for c in name if c not in "\\/:*?\"<>|").strip()
+        return os.path.join(self._tpl_dir, f"{safe}.json")
+
+    def _reload_template_list(self) -> None:
+        self.tplListCombo.clear()
+        try:
+            files = [f[:-5] for f in os.listdir(self._tpl_dir) if f.endswith('.json') and f != 'last.json']
+            files.sort()
+            self.tplListCombo.addItems(files)
+        except Exception:
+            pass
+
+    def _save_template_clicked(self) -> None:
+        name = self.tplNameEdit.text().strip()
+        if not name:
+            QtWidgets.QMessageBox.warning(self, "提示", "请输入模板名称")
+            return
+        data = self._collect_template_dict()
+        path = self._tpl_path(name)
+        try:
+            import json
+            with open(path, 'w', encoding='utf-8') as f:
+                json.dump(data, f, ensure_ascii=False, indent=2)
+            self._reload_template_list()
+            QtWidgets.QMessageBox.information(self, "提示", "模板已保存")
+        except Exception as e:
+            QtWidgets.QMessageBox.critical(self, "错误", f"保存失败: {e}")
+
+    def _load_template_clicked(self) -> None:
+        name = self.tplListCombo.currentText().strip()
+        if not name:
+            return
+        path = self._tpl_path(name)
+        try:
+            import json
+            with open(path, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+            self._apply_template_dict(data)
+        except Exception as e:
+            QtWidgets.QMessageBox.critical(self, "错误", f"载入失败: {e}")
+
+    def _delete_template_clicked(self) -> None:
+        name = self.tplListCombo.currentText().strip()
+        if not name:
+            return
+        path = self._tpl_path(name)
+        try:
+            if os.path.isfile(path):
+                os.remove(path)
+            self._reload_template_list()
+        except Exception as e:
+            QtWidgets.QMessageBox.critical(self, "错误", f"删除失败: {e}")
+
+    def closeEvent(self, event: QtGui.QCloseEvent) -> None:
+        # 自动保存最后一次设置
+        try:
+            data = self._collect_template_dict()
+            import json
+            with open(self._last_file, 'w', encoding='utf-8') as f:
+                json.dump(data, f, ensure_ascii=False, indent=2)
+        except Exception:
+            pass
+        super().closeEvent(event)
+
 
 class WatermarkApp:
     def __init__(self, argv: List[str]) -> None:
         self._qt_app = QtWidgets.QApplication(argv)
         self._qt_app.setApplicationName("水印批处理工具")
         self._win = MainWindow()
+        # 启动时尝试加载上次设置
+        try:
+            last = self._win._last_file
+            if os.path.isfile(last):
+                import json
+                with open(last, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                self._win._apply_template_dict(data)
+        except Exception:
+            pass
 
     def run(self) -> int:
         self._win.show()
