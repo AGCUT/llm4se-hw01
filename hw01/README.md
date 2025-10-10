@@ -1,6 +1,5 @@
 # 水印批处理工具
-
-一个功能强大的Windows桌面应用程序，用于批量添加水印到图片。
+最终可执行文件路径为llm4se-hw01\hw01\dist\watermark_tool.exe，请在win系统下打开。
 
 ## 功能特性
 
