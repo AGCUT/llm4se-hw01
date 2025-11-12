@@ -1,0 +1,9 @@
+/* CSS变量定义 */
+:root {
+  --primary-color: #3B82F6;
+  --secondary-color: #10B981;
+  --accent-color: #F59E0B;
+  --text-color: #1F2937;
+  --bg-color: #ffffff;
+}
+

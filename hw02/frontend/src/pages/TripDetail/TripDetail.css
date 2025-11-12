@@ -1,0 +1,491 @@
+/* 行程详情页面样式 */
+.trip-detail-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 40px 20px;
+}
+
+.trip-detail-loading,
+.trip-detail-error {
+  text-align: center;
+  padding: 60px 20px;
+}
+
+.loading-spinner {
+  font-size: 24px;
+  color: #667eea;
+}
+
+/* 行程头部 */
+.trip-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 30px;
+  padding: 30px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 16px;
+  color: white;
+}
+
+.trip-title-section h1 {
+  font-size: 32px;
+  font-weight: 700;
+  margin-bottom: 15px;
+}
+
+.trip-meta {
+  display: flex;
+  gap: 20px;
+  flex-wrap: wrap;
+  font-size: 15px;
+  opacity: 0.95;
+}
+
+.trip-actions {
+  display: flex;
+  gap: 10px;
+}
+
+/* 视图切换 */
+.view-tabs {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 30px;
+}
+
+.view-tab {
+  padding: 12px 24px;
+  border: 2px solid #e2e8f0;
+  border-radius: 8px;
+  background: white;
+  font-size: 15px;
+  font-weight: 600;
+  color: #4a5568;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.view-tab:hover {
+  border-color: #cbd5e0;
+}
+
+.view-tab.active {
+  background: #667eea;
+  color: white;
+  border-color: #667eea;
+}
+
+/* Timeline 视图 */
+.timeline-view {
+  background: white;
+  border-radius: 12px;
+  padding: 30px;
+}
+
+.overview-section {
+  margin-bottom: 30px;
+  padding: 20px;
+  background: #f7fafc;
+  border-radius: 12px;
+}
+
+.overview-section h3 {
+  font-size: 20px;
+  font-weight: 600;
+  margin-bottom: 15px;
+}
+
+.highlights-list {
+  list-style: none;
+  padding: 0;
+}
+
+.highlights-list li {
+  padding: 10px 0 10px 30px;
+  position: relative;
+  line-height: 1.6;
+}
+
+.highlights-list li::before {
+  content: '✨';
+  position: absolute;
+  left: 0;
+  font-size: 18px;
+}
+
+/* 天数选择器 */
+.day-selector {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 30px;
+  flex-wrap: wrap;
+}
+
+.day-btn {
+  padding: 10px 20px;
+  border: 2px solid #e2e8f0;
+  border-radius: 20px;
+  background: white;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.day-btn:hover {
+  border-color: #cbd5e0;
+}
+
+.day-btn.active {
+  background: #667eea;
+  color: white;
+  border-color: #667eea;
+}
+
+/* 当日行程 */
+.day-content {
+  animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.day-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 25px;
+  padding-bottom: 15px;
+  border-bottom: 2px solid #e2e8f0;
+}
+
+.day-info h3 {
+  font-size: 22px;
+  font-weight: 700;
+}
+
+.day-budget {
+  font-size: 18px;
+  font-weight: 700;
+  color: #667eea;
+}
+
+/* 活动时间轴 */
+.activities-timeline {
+  position: relative;
+}
+
+.activity-item {
+  display: grid;
+  grid-template-columns: 80px 30px 1fr;
+  gap: 20px;
+  margin-bottom: 25px;
+  position: relative;
+}
+
+.activity-item:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  left: 95px;
+  top: 25px;
+  bottom: -25px;
+  width: 2px;
+  background: #e2e8f0;
+}
+
+.activity-time {
+  font-size: 15px;
+  font-weight: 600;
+  color: #667eea;
+  text-align: right;
+  padding-top: 5px;
+}
+
+.activity-dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #667eea;
+  margin-top: 8px;
+  position: relative;
+  z-index: 1;
+  box-shadow: 0 0 0 4px white, 0 0 0 6px #e2e8f0;
+}
+
+.activity-card {
+  background: #f7fafc;
+  border-radius: 12px;
+  padding: 20px;
+  transition: all 0.2s;
+}
+
+.activity-card:hover {
+  transform: translateX(5px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.activity-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.activity-icon {
+  font-size: 24px;
+}
+
+.activity-type {
+  font-size: 12px;
+  font-weight: 600;
+  color: #718096;
+  background: white;
+  padding: 4px 10px;
+  border-radius: 10px;
+}
+
+.activity-cost {
+  margin-left: auto;
+  font-size: 16px;
+  font-weight: 700;
+  color: #48bb78;
+}
+
+.activity-card h4 {
+  font-size: 18px;
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+
+.activity-card p {
+  font-size: 14px;
+  color: #4a5568;
+  line-height: 1.6;
+  margin-bottom: 8px;
+}
+
+.activity-location,
+.activity-duration {
+  font-size: 13px;
+  color: #718096;
+}
+
+.activity-tips {
+  margin-top: 15px;
+  padding: 15px;
+  background: white;
+  border-radius: 8px;
+  border-left: 3px solid #667eea;
+}
+
+.activity-tips strong {
+  display: block;
+  margin-bottom: 8px;
+}
+
+.activity-tips ul {
+  margin: 0;
+  padding-left: 20px;
+}
+
+.activity-tips li {
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+/* 预算统计 */
+.budget-stats {
+  margin-top: 40px;
+  padding: 30px;
+  background: white;
+  border: 2px solid #e2e8f0;
+  border-radius: 12px;
+}
+
+.budget-stats h3 {
+  font-size: 20px;
+  font-weight: 700;
+  margin-bottom: 20px;
+}
+
+.budget-chart {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.budget-bar-item {
+  display: grid;
+  grid-template-columns: 80px 1fr 100px;
+  gap: 15px;
+  align-items: center;
+}
+
+.budget-category {
+  font-weight: 600;
+}
+
+.budget-bar-bg {
+  height: 24px;
+  background: #f7fafc;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.budget-bar-fill {
+  height: 100%;
+  border-radius: 12px;
+  transition: width 0.5s ease;
+}
+
+.budget-bar-fill.transportation { background: #667eea; }
+.budget-bar-fill.accommodation { background: #764ba2; }
+.budget-bar-fill.food { background: #48bb78; }
+.budget-bar-fill.attractions { background: #ed8936; }
+.budget-bar-fill.other { background: #4299e1; }
+
+.budget-amount {
+  font-weight: 700;
+  text-align: right;
+}
+
+/* Map 视图 */
+.map-view {
+  background: white;
+  border-radius: 12px;
+  padding: 30px;
+}
+
+.map-container {
+  width: 100%;
+  height: 500px;
+  background: #f7fafc;
+  border-radius: 12px;
+  margin-bottom: 30px;
+  overflow: hidden;
+}
+
+.map-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #f7fafc 0%, #edf2f7 100%);
+}
+
+.map-placeholder-content {
+  text-align: center;
+}
+
+.map-icon {
+  font-size: 80px;
+  margin-bottom: 20px;
+}
+
+.map-placeholder h3 {
+  font-size: 24px;
+  font-weight: 700;
+  margin-bottom: 10px;
+}
+
+.map-placeholder p {
+  color: #718096;
+}
+
+.map-hint {
+  margin-top: 15px;
+  padding: 15px;
+  background: white;
+  border-radius: 8px;
+  display: inline-block;
+}
+
+/* 地点列表 */
+.locations-list {
+  margin-top: 30px;
+}
+
+.locations-list h3 {
+  font-size: 20px;
+  font-weight: 700;
+  margin-bottom: 20px;
+}
+
+.location-items {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 15px;
+}
+
+.location-card {
+  display: flex;
+  gap: 15px;
+  padding: 15px;
+  background: #f7fafc;
+  border-radius: 8px;
+  transition: all 0.2s;
+}
+
+.location-card:hover {
+  background: #edf2f7;
+  transform: translateY(-2px);
+}
+
+.location-number {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: #667eea;
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.location-info h4 {
+  font-size: 16px;
+  font-weight: 600;
+  margin-bottom: 5px;
+}
+
+.location-info p {
+  font-size: 13px;
+  color: #718096;
+}
+
+/* 响应式 */
+@media (max-width: 768px) {
+  .trip-header {
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  .trip-meta {
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .activity-item {
+    grid-template-columns: 60px 20px 1fr;
+    gap: 10px;
+  }
+
+  .activity-item:not(:last-child)::after {
+    left: 75px;
+  }
+
+  .budget-bar-item {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .location-items {
+    grid-template-columns: 1fr;
+  }
+}
+
