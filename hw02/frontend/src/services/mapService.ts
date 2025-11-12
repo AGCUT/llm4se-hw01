@@ -16,6 +16,9 @@ declare global {
 let mapInstance: any = null
 let AMap: any = null
 
+// 地理编码缓存（避免重复编码同一个地址）
+const geocodeCache = new Map<string, { lng: number; lat: number } | null>()
+
 /**
  * 初始化高德地图
  * @returns Promise<{ AMap, map }>
@@ -75,30 +78,115 @@ export const initAMap = async (containerId: string, options?: any) => {
 
 /**
  * 地理编码 - 将地址转换为坐标
+ * 使用高德地图 Web 服务 API（更可靠）
+ * @param address 地址
+ * @param amapInstance 可选的 AMap 实例（保留参数以兼容旧代码）
  */
-export const geocode = async (address: string): Promise<{ lng: number; lat: number } | null> => {
+export const geocode = async (address: string, amapInstance?: any): Promise<{ lng: number; lat: number } | null> => {
   try {
-    if (!AMap) {
-      await initAMap('temp-container')
+    console.log(`[geocode] 开始地理编码: ${address}`)
+    
+    // 获取 API Key
+    const apiKey = import.meta.env.VITE_AMAP_KEY || AMAP_CONFIG.key
+    if (!apiKey) {
+      console.error('[geocode] ⚠️ 高德地图 API Key 未配置')
+      return null
     }
+    
+    console.log(`[geocode] API Key 已配置: ${apiKey.substring(0, 10)}...`)
 
-    return new Promise((resolve, reject) => {
-      const geocoder = new AMap.Geocoder({
-        city: '全国' // 城市设为"全国"
-      })
+    // 使用高德地图 Web 服务 API 进行地理编码
+    // 文档：https://lbs.amap.com/api/webservice/guide/api/georegeo
+    const url = `https://restapi.amap.com/v3/geocode/geo`
+    const params = new URLSearchParams({
+      key: apiKey,
+      address: address,
+      output: 'JSON'
+    })
 
-      geocoder.getLocation(address, (status: string, result: any) => {
-        if (status === 'complete' && result.geocodes.length > 0) {
-          const location = result.geocodes[0].location
-          resolve({ lng: location.lng, lat: location.lat })
-        } else {
-          console.warn('地理编码失败:', address, result)
-          resolve(null)
+    const fullUrl = `${url}?${params.toString()}`
+    console.log(`[geocode] 调用 Web 服务 API: ${fullUrl}`)
+    console.log(`[geocode] 请求参数: address=${address}, key=${apiKey.substring(0, 10)}...`)
+
+    try {
+      console.log(`[geocode] 开始发送 fetch 请求...`)
+      const fetchStartTime = Date.now()
+      const response = await fetch(fullUrl, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json'
         }
       })
-    })
+      const fetchDuration = Date.now() - fetchStartTime
+      console.log(`[geocode] fetch 请求完成，耗时: ${fetchDuration}ms`)
+      console.log(`[geocode] 响应状态: ${response.status} ${response.statusText}`)
+      console.log(`[geocode] 响应头:`, Object.fromEntries(response.headers.entries()))
+      
+      if (!response.ok) {
+        console.error(`[geocode] ⚠️ HTTP 错误: ${response.status} ${response.statusText}`)
+        const errorText = await response.text()
+        console.error(`[geocode] 错误内容:`, errorText)
+        return null
+      }
+
+      console.log(`[geocode] 开始解析响应 JSON...`)
+      const data = await response.json()
+      console.log(`[geocode] 响应数据:`, data)
+      console.log(`[geocode] 响应数据 status:`, data.status)
+      console.log(`[geocode] 响应数据 info:`, data.info)
+      console.log(`[geocode] 响应数据 count:`, data.count)
+      console.log(`[geocode] 响应数据 geocodes:`, data.geocodes)
+
+      if (data.status === '1' && data.geocodes && data.geocodes.length > 0) {
+        const geocode = data.geocodes[0]
+        console.log(`[geocode] 第一个 geocode:`, geocode)
+        const location = geocode.location // 格式: "lng,lat"
+        console.log(`[geocode] location 字符串:`, location)
+        
+        if (location) {
+          const [lng, lat] = location.split(',').map(Number)
+          console.log(`[geocode] 解析后的坐标: lng=${lng}, lat=${lat}`)
+          
+          if (!isNaN(lng) && !isNaN(lat)) {
+            console.log(`[geocode] ✅ 地理编码成功: ${address} ->`, { lng, lat })
+            return { lng, lat }
+          } else {
+            console.error(`[geocode] ❌ 坐标解析失败: lng=${lng}, lat=${lat}`)
+            return null
+          }
+        } else {
+          console.error(`[geocode] ❌ location 为空`)
+          return null
+        }
+      } else {
+        // 检查是否是限流错误
+        if (data.status === '0' && data.info && data.info.includes('CUQPS_HAS_EXCEEDED_THE_LIMIT')) {
+          console.error(`[geocode] ❌ 地理编码限流错误: ${address}`, {
+            status: data.status,
+            info: data.info,
+            count: data.count
+          })
+          // 抛出限流错误，让调用者可以重试
+          throw new Error(`地理编码限流: ${data.info}`)
+        }
+        
+        console.warn(`[geocode] ⚠️ 地理编码失败: ${address}`, {
+          status: data.status,
+          info: data.info,
+          count: data.count,
+          geocodes: data.geocodes
+        })
+        return null
+      }
+    } catch (fetchError: any) {
+      console.error(`[geocode] ❌ 网络请求异常: ${address}`, fetchError)
+      console.error(`[geocode] 错误类型:`, fetchError?.constructor?.name)
+      console.error(`[geocode] 错误消息:`, fetchError?.message)
+      console.error(`[geocode] 错误堆栈:`, fetchError?.stack)
+      return null
+    }
   } catch (error: any) {
-    console.error('地理编码错误:', error)
+    console.error(`[geocode] ❌ 地理编码错误: ${address}`, error)
     return null
   }
 }
