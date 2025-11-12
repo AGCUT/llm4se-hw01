@@ -1013,6 +1013,92 @@ export const isAIConfigured = (): boolean => {
   return !!(config && config.apiKey)
 }
 
+// 解析语音输入为行程请求（使用 AI API）
+export const parseVoiceInputWithAI = async (text: string): Promise<Partial<TripRequest> | null> => {
+  const config = getAIConfig()
+  
+  if (!config || !config.apiKey) {
+    console.warn('AI 配置不可用，使用本地解析')
+    return null
+  }
+
+  try {
+    const prompt = `请从以下用户的语音输入中提取旅行需求信息，并以 JSON 格式返回：
+
+用户语音输入：${text}
+
+请提取以下信息：
+1. destination（目的地）：字符串，如果未提及则返回 null
+2. days（天数）：数字，1-30之间，如果未提及则返回 null
+3. budget（预算）：数字，单位：元，如果未提及则返回 null
+4. travelers（人数）：数字，1-20之间，如果未提及则返回 null
+5. travelerTypes（同行人类型）：字符串数组，可选值：["成人", "儿童", "老人"]，如果未提及则返回 []
+6. preferences（偏好）：字符串数组，可选值：["美食", "动漫", "历史文化", "自然风光", "购物", "休闲"]，如果未提及则返回 []
+7. additionalInfo（其他需求）：字符串，如果未提及则返回 ""
+
+注意事项：
+- 预算数字需要转换为阿拉伯数字（例如："五千元" → 5000，"五万元" → 50000）
+- 天数数字需要转换为阿拉伯数字（例如："五天" → 5）
+- 人数数字需要转换为阿拉伯数字（例如："两个人" → 2）
+- 只返回 JSON 对象，不要包含其他说明文字
+
+JSON 格式示例：
+{
+  "destination": "无锡",
+  "days": 5,
+  "budget": 5000,
+  "travelers": 2,
+  "travelerTypes": ["成人"],
+  "preferences": ["美食", "历史文化"],
+  "additionalInfo": ""
+}`
+
+    let result: string
+
+    switch (config.provider) {
+      case 'aliyun':
+        result = await callAliyunAPI(prompt, config)
+        break
+      case 'openai':
+        result = await callOpenAIAPI(prompt, config)
+        break
+      case 'deepseek':
+        result = await callDeepSeekAPI(prompt, config)
+        break
+      default:
+        console.warn(`不支持的 AI 提供商: ${config.provider}，使用本地解析`)
+        return null
+    }
+
+    // 解析 AI 返回的 JSON
+    try {
+      const jsonString = extractJSON(result)
+      const parsed = JSON.parse(jsonString)
+      
+      // 验证和清理数据
+      const tripRequest: Partial<TripRequest> = {
+        destination: parsed.destination || null,
+        days: parsed.days && parsed.days >= 1 && parsed.days <= 30 ? parsed.days : null,
+        budget: parsed.budget && parsed.budget >= 100 ? parsed.budget : null,
+        travelers: parsed.travelers && parsed.travelers >= 1 && parsed.travelers <= 20 ? parsed.travelers : null,
+        travelerTypes: Array.isArray(parsed.travelerTypes) ? parsed.travelerTypes : [],
+        preferences: Array.isArray(parsed.preferences) ? parsed.preferences : [],
+        additionalInfo: parsed.additionalInfo || ''
+      }
+
+      console.log('AI 解析结果:', tripRequest)
+      return tripRequest
+    } catch (parseError: any) {
+      console.error('解析 AI 返回的 JSON 失败:', parseError)
+      console.error('AI 返回内容:', result)
+      return null
+    }
+  } catch (error: any) {
+    console.error('AI 解析语音输入失败:', error)
+    return null
+  }
+}
+
 // 测试 AI API 连接
 export const testAIConnection = async (): Promise<any> => {
   const config = getAIConfig()

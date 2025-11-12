@@ -1,8 +1,9 @@
 // 输入步骤 - 支持语音和文字输入
 import { useState, useEffect } from 'react'
 import { createVoiceRecognition, isVoiceRecognitionAvailable, checkMicrophonePermission } from '@/services/voiceService'
-import { isAIConfigured } from '@/api/ai.api'
+import { isAIConfigured, parseVoiceInputWithAI } from '@/api/ai.api'
 import type { TripRequest } from '@/api/ai.api'
+import { chineseToNumber, extractBudget, extractDays, extractTravelers } from '@/utils/chineseNumberConverter'
 import Button from '@/components/common/Button/Button'
 import './InputStep.css'
 
@@ -28,6 +29,8 @@ const InputStep = ({ onComplete }: InputStepProps) => {
   const [voiceRecognition, setVoiceRecognition] = useState<any>(null)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [isPermissionChecked, setIsPermissionChecked] = useState(false)
+  const [isParsing, setIsParsing] = useState(false)
+  const [useAIForParsing, setUseAIForParsing] = useState(true) // 默认使用 AI 解析
 
   // 初始化语音识别
   useEffect(() => {
@@ -50,12 +53,18 @@ const InputStep = ({ onComplete }: InputStepProps) => {
       }
 
       const recognition = createVoiceRecognition({
-        onResult: (text) => {
+        onResult: async (text) => {
           console.log('语音识别结果:', text)
           setVoiceText(text)
           setInterimText('')
           setErrorMessage(null)
-          parseVoiceInput(text)
+          
+          // 使用 AI 解析或本地解析
+          if (useAIForParsing && isAIConfigured()) {
+            await parseVoiceInputWithAIAssist(text)
+          } else {
+            parseVoiceInput(text)
+          }
         },
         onInterimResult: (text) => {
           // 显示中间结果
@@ -96,10 +105,67 @@ const InputStep = ({ onComplete }: InputStepProps) => {
     initVoiceRecognition()
   }, [])
 
-  // 解析语音输入
+  // 使用 AI 解析语音输入
+  const parseVoiceInputWithAIAssist = async (text: string) => {
+    setIsParsing(true)
+    setErrorMessage(null)
+
+    try {
+      const result = await parseVoiceInputWithAI(text)
+      if (result) {
+        const updated = { ...formData }
+        let hasChanges = false
+
+        if (result.destination) {
+          updated.destination = result.destination
+          hasChanges = true
+        }
+        if (result.days !== null && result.days !== undefined) {
+          updated.days = result.days
+          hasChanges = true
+        }
+        if (result.budget !== null && result.budget !== undefined) {
+          updated.budget = result.budget
+          hasChanges = true
+        }
+        if (result.travelers !== null && result.travelers !== undefined) {
+          updated.travelers = result.travelers
+          hasChanges = true
+        }
+        if (result.travelerTypes && result.travelerTypes.length > 0) {
+          updated.travelerTypes = result.travelerTypes
+          hasChanges = true
+        }
+        if (result.preferences && result.preferences.length > 0) {
+          updated.preferences = result.preferences
+          hasChanges = true
+        }
+        if (result.additionalInfo) {
+          updated.additionalInfo = result.additionalInfo
+          hasChanges = true
+        }
+
+        if (hasChanges) {
+          setFormData(updated)
+          console.log('AI 语音解析结果:', updated)
+        }
+      } else {
+        // AI 解析失败，回退到本地解析
+        console.warn('AI 解析失败，使用本地解析')
+        parseVoiceInput(text)
+      }
+    } catch (error: any) {
+      console.error('AI 解析出错:', error)
+      // AI 解析出错，回退到本地解析
+      parseVoiceInput(text)
+    } finally {
+      setIsParsing(false)
+    }
+  }
+
+  // 解析语音输入（本地解析，支持中文数字）
   const parseVoiceInput = (text: string) => {
     const updated = { ...formData }
-
     let hasChanges = false
 
     // 匹配目的地（多种模式）
@@ -118,60 +184,36 @@ const InputStep = ({ onComplete }: InputStepProps) => {
       }
     }
 
-    // 匹配天数（多种模式）
-    const daysPatterns = [
-      /(\d+)天/,
-      /(\d+)日/,
-      /(\d+)个?日?子/
-    ]
-    for (const pattern of daysPatterns) {
-      const match = text.match(pattern)
-      if (match && match[1]) {
-        const days = parseInt(match[1])
-        if (days >= 1 && days <= 30) {
-          updated.days = days
-          hasChanges = true
-          break
-        }
+    // 如果没有匹配到目的地，尝试提取第一个地点名称
+    if (!updated.destination) {
+      // 简单的地点名称提取（可以改进）
+      const locationMatch = text.match(/(?:去|到|目的地)([\u4e00-\u9fa5]{2,10})/)
+      if (locationMatch && locationMatch[1]) {
+        updated.destination = locationMatch[1].trim()
+        hasChanges = true
       }
     }
 
-    // 匹配预算（多种模式）
-    const budgetPatterns = [
-      /预算[是为]?(\d+)[万元]/,
-      /(\d+)万[元]?/,
-      /(\d+)元/
-    ]
-    for (const pattern of budgetPatterns) {
-      const match = text.match(pattern)
-      if (match && match[1]) {
-        const amount = parseInt(match[1])
-        if (text.includes('万')) {
-          updated.budget = amount * 10000
-          hasChanges = true
-        } else if (amount >= 100) {
-          updated.budget = amount
-          hasChanges = true
-        }
-        break
-      }
+    // 匹配天数（支持中文数字，如"五天"、"五日"）
+    const days = extractDays(text)
+    if (days !== null) {
+      updated.days = days
+      hasChanges = true
     }
 
-    // 匹配人数（多种模式）
-    const travelersPatterns = [
-      /(\d+)人/,
-      /(\d+)个?人/
-    ]
-    for (const pattern of travelersPatterns) {
-      const match = text.match(pattern)
-      if (match && match[1]) {
-        const travelers = parseInt(match[1])
-        if (travelers >= 1 && travelers <= 20) {
-          updated.travelers = travelers
-          hasChanges = true
-          break
-        }
-      }
+    // 匹配预算（支持中文数字，如"五千元"、"五万元"）
+    // 使用 extractBudget 函数，它已经正确处理了中文数字转换
+    const budget = extractBudget(text)
+    if (budget !== null && budget >= 100) {
+      updated.budget = budget
+      hasChanges = true
+    }
+
+    // 匹配人数（支持中文数字）
+    const travelers = extractTravelers(text)
+    if (travelers !== null) {
+      updated.travelers = travelers
+      hasChanges = true
     }
 
     // 匹配偏好
@@ -209,7 +251,7 @@ const InputStep = ({ onComplete }: InputStepProps) => {
 
     if (hasChanges) {
       setFormData(updated)
-      console.log('语音解析结果:', updated)
+      console.log('本地语音解析结果:', updated)
     }
   }
 

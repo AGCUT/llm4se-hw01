@@ -80,6 +80,18 @@
   animation: fadeIn 0.3s ease;
 }
 
+.voice-parsing {
+  margin-top: 15px;
+  padding: 12px;
+  background: #fff3cd;
+  border-radius: 8px;
+  border-left: 4px solid #ffc107;
+  font-size: 14px;
+  color: #856404;
+  text-align: left;
+  animation: fadeIn 0.3s ease;
+}
+
 .voice-interim {
   margin-top: 15px;
   padding: 12px;
