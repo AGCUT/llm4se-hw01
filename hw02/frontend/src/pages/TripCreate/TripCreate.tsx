@@ -14,6 +14,7 @@ const TripCreate = () => {
   const [currentStep, setCurrentStep] = useState<Step>('input')
   const [tripRequest, setTripRequest] = useState<TripRequest | null>(null)
   const [tripPlan, setTripPlan] = useState<TripPlan | null>(null)
+  const [isSaving, setIsSaving] = useState(false)
 
   // 处理输入完成
   const handleInputComplete = (request: TripRequest) => {
@@ -34,24 +35,58 @@ const TripCreate = () => {
 
   // 处理保存行程
   const handleSavePlan = async () => {
+    console.log('=== 保存行程按钮被点击 ===')
+    console.log('tripPlan:', tripPlan)
+    console.log('isSaving:', isSaving)
+    
     if (!tripPlan) {
+      console.error('❌ 没有可保存的行程计划')
       alert('❌ 没有可保存的行程计划')
       return
     }
 
+    // 防止重复点击
+    if (isSaving) {
+      console.warn('⚠️ 正在保存中，忽略重复点击')
+      return
+    }
+    
+    console.log('✅ 开始保存流程...')
+    setIsSaving(true)
+
     try {
+      console.log('步骤 1: 动态导入 createTripFromPlan...')
       const { createTripFromPlan } = await import('@/api/trip.api')
-      console.log('开始保存行程...', tripPlan)
+      console.log('✅ createTripFromPlan 导入成功')
       
+      console.log('步骤 2: 调用 createTripFromPlan...')
+      console.log('行程计划数据:', {
+        title: tripPlan.title,
+        destination: tripPlan.destination,
+        days: tripPlan.days,
+        budget: tripPlan.budget,
+        dailyPlans: tripPlan.dailyPlans?.length || 0
+      })
+      
+      console.log('⚠️ 注意: 请打开 Network 面板，查看是否有 POST 请求发送到 /rest/v1/trips')
       const savedTrip = await createTripFromPlan(tripPlan)
-      console.log('行程保存成功:', savedTrip)
+      
+      console.log('✅ 行程保存成功:', savedTrip)
+      console.log('✅ 保存的行程 ID:', savedTrip.id)
       
       alert('✅ 行程已保存！正在跳转到行程详情...')
       navigate(`/trip/${savedTrip.id}`)
     } catch (error: any) {
-      console.error('保存失败:', error)
+      console.error('❌ 保存失败:', error)
+      console.error('错误类型:', error?.constructor?.name)
+      console.error('错误消息:', error?.message)
+      console.error('错误堆栈:', error?.stack)
+      
       const errorMessage = error?.message || '保存失败，请重试'
-      alert(`❌ ${errorMessage}\n\n请检查：\n1. 是否已登录\n2. 网络连接是否正常\n3. 浏览器控制台是否有错误信息`)
+      alert(`❌ ${errorMessage}\n\n请检查：\n1. 是否已登录\n2. 网络连接是否正常\n3. 浏览器控制台是否有错误信息\n4. Network 面板是否有请求`)
+    } finally {
+      console.log('保存流程结束，重置 isSaving 状态')
+      setIsSaving(false)
     }
   }
 
@@ -97,6 +132,7 @@ const TripCreate = () => {
             plan={tripPlan}
             onSave={handleSavePlan}
             onRegenerate={handleRegenerate}
+            isSaving={isSaving}
           />
         )}
       </div>
