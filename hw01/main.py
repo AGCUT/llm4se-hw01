@@ -3,7 +3,7 @@ from app.ui import WatermarkApp
 
 
 def main() -> None:
-    app = WatermarkApp(sys.argv)
+    app = WatermarkApp()
     sys.exit(app.run())
 
 

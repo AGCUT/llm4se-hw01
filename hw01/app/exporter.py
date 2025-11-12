@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from typing import List, Optional, Tuple
 
 from PIL import Image
-from .utils import qimage_to_pil_rgba, render_text_overlay_qimage
+from .utils import render_text_overlay
 
 
 NamingRule = Tuple[str, str]  # ("keep"|"prefix"|"suffix", value)
@@ -127,8 +127,8 @@ class Exporter:
         text = (self.settings.wm_text or "").strip()
         if not text:
             return img
-        # render overlay via Qt for high-quality font rendering
-        overlay_qimg = render_text_overlay_qimage(
+        # render overlay using PIL
+        overlay = render_text_overlay(
             text=text,
             font_family=self.settings.wm_font_family,
             point_size=int(self.settings.wm_font_size),
@@ -138,7 +138,6 @@ class Exporter:
             shadow=bool(self.settings.wm_shadow),
             outline=bool(self.settings.wm_outline),
         )
-        overlay = qimage_to_pil_rgba(overlay_qimg)
         if img.mode != "RGBA":
             base = img.convert("RGBA")
         else:

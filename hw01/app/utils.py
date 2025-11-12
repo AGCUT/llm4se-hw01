@@ -1,8 +1,6 @@
 import os
 from typing import Iterable, List, Tuple
-
-from PIL import Image
-from PyQt5 import QtGui, QtCore
+from PIL import Image, ImageDraw, ImageFont
 
 
 SUPPORTED_EXTS = {".png", ".jpg", ".jpeg", ".bmp", ".tif", ".tiff"}
@@ -24,31 +22,14 @@ def unique_paths_preserve_order(paths: Iterable[str]) -> List[str]:
     return result
 
 
-def generate_thumbnail_qimage(path: str, max_size: int = 96) -> QtGui.QImage:
+def generate_thumbnail(path: str, max_size: int = 96) -> Image.Image:
+    """生成缩略图"""
     with Image.open(path) as im:
         im.thumbnail((max_size, max_size), Image.LANCZOS)
-        if im.mode not in ("RGB", "RGBA"):
-            im = im.convert("RGBA") if "A" in im.getbands() else im.convert("RGB")
-        if im.mode == "RGBA":
-            data = im.tobytes("raw", "RGBA")
-            qimg = QtGui.QImage(data, im.width, im.height, QtGui.QImage.Format_RGBA8888)
-        else:
-            data = im.tobytes("raw", "RGB")
-            qimg = QtGui.QImage(data, im.width, im.height, QtGui.QImage.Format_RGB888)
-        return qimg.copy()
+        return im.copy()
 
 
-def qimage_to_pil_rgba(qimg: QtGui.QImage) -> Image.Image:
-    converted = qimg.convertToFormat(QtGui.QImage.Format_RGBA8888)
-    width = converted.width()
-    height = converted.height()
-    ptr = converted.bits()
-    ptr.setsize(converted.byteCount())
-    arr = bytes(ptr)
-    return Image.frombuffer("RGBA", (width, height), arr, "raw", "RGBA", 0, 1)
-
-
-def render_text_overlay_qimage(
+def render_text_overlay(
     text: str,
     font_family: str,
     point_size: int,
@@ -57,51 +38,65 @@ def render_text_overlay_qimage(
     rgba: Tuple[int, int, int, int],
     shadow: bool,
     outline: bool,
-) -> QtGui.QImage:
+) -> Image.Image:
+    """渲染文本水印为 PIL Image"""
     if not text:
-        img = QtGui.QImage(1, 1, QtGui.QImage.Format_RGBA8888)
-        img.fill(QtCore.Qt.transparent)
-        return img
+        return Image.new("RGBA", (1, 1), (0, 0, 0, 0))
 
-    font = QtGui.QFont(font_family, point_size)
-    font.setBold(bold)
-    font.setItalic(italic)
+    # 尝试加载字体
+    try:
+        # Windows 系统字体路径
+        if font_family == "Microsoft YaHei" or font_family == "微软雅黑":
+            font_path = "C:/Windows/Fonts/msyh.ttc"
+        elif font_family == "SimSun" or font_family == "宋体":
+            font_path = "C:/Windows/Fonts/simsun.ttc"
+        elif font_family == "Arial":
+            font_path = "C:/Windows/Fonts/arial.ttf"
+        else:
+            font_path = None
+        
+        if font_path and os.path.exists(font_path):
+            font = ImageFont.truetype(font_path, point_size)
+        else:
+            font = ImageFont.load_default()
+    except:
+        font = ImageFont.load_default()
 
-    fm = QtGui.QFontMetrics(font)
-    br = fm.boundingRect(text)
-    # extra padding for outline/shadow
-    pad = 4 if (shadow or outline) else 2
-    w = max(1, br.width() + pad * 2)
-    h = max(1, br.height() + pad * 2)
+    # 计算文本大小
+    dummy = Image.new("RGBA", (1, 1))
+    draw = ImageDraw.Draw(dummy)
+    bbox = draw.textbbox((0, 0), text, font=font)
+    text_w = bbox[2] - bbox[0]
+    text_h = bbox[3] - bbox[1]
+    
+    # 添加边距
+    pad = 6 if (shadow or outline) else 4
+    w = text_w + pad * 2
+    h = text_h + pad * 2
 
-    img = QtGui.QImage(w, h, QtGui.QImage.Format_RGBA8888)
-    img.fill(QtCore.Qt.transparent)
-
-    painter = QtGui.QPainter(img)
-    painter.setRenderHint(QtGui.QPainter.Antialiasing, True)
-    painter.setRenderHint(QtGui.QPainter.TextAntialiasing, True)
-    painter.setFont(font)
+    # 创建透明图像
+    img = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(img)
 
     x = pad
-    y = pad + fm.ascent()
+    y = pad
 
     r, g, b, a = rgba
-    color = QtGui.QColor(r, g, b, a)
 
+    # 绘制阴影
     if shadow:
-        shadow_color = QtGui.QColor(0, 0, 0, int(a * 0.6))
-        painter.setPen(shadow_color)
-        painter.drawText(x + 2, y + 2, text)
+        shadow_color = (0, 0, 0, int(a * 0.6))
+        draw.text((x + 2, y + 2), text, font=font, fill=shadow_color)
 
+    # 绘制描边
     if outline:
-        outline_color = QtGui.QColor(0, 0, 0, a)
-        painter.setPen(outline_color)
-        for dx, dy in ((-1, 0), (1, 0), (0, -1), (0, 1)):
-            painter.drawText(x + dx, y + dy, text)
+        outline_color = (0, 0, 0, a)
+        for dx, dy in ((-1, -1), (-1, 1), (1, -1), (1, 1), (-2, 0), (2, 0), (0, -2), (0, 2)):
+            draw.text((x + dx, y + dy), text, font=font, fill=outline_color)
 
-    painter.setPen(color)
-    painter.drawText(x, y, text)
-    painter.end()
+    # 绘制主文本
+    draw.text((x, y), text, font=font, fill=(r, g, b, a))
+
     return img
 
 
