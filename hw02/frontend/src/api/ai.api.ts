@@ -141,6 +141,29 @@ ${request.additionalInfo ? `其他需求：${request.additionalInfo}` : ''}
 2. 每日详细安排（包括时间、活动、地点、预计费用）
 3. 预算分解（交通、住宿、餐饮、景点、其他）
 
+【重要要求 - 住宿和行程安排规则】：
+1. **每天必须有住宿活动**（最后一天除外）：每天的 activities 数组中必须包含至少一个 type 为 "accommodation" 的活动，表示当天入住的酒店。最后一天如果最后是交通返回，则不需要住宿活动
+2. **每天的起始地点**：
+   - 如果第一天的第一个活动是交通（type: "transportation"），则从交通开始
+   - 否则，第一天的第一个活动应该是住宿（type: "accommodation"），表示从酒店出发
+   - 从第二天开始，每天的第一个活动必须是前一天晚上入住的酒店（accommodation），表示从酒店出发
+3. **每天的结束地点**：
+   - 非最后一天：每天的最后一个活动应该是住宿（type: "accommodation"），表示返回酒店
+   - 最后一天：如果最后是交通返回，则交通应该作为最后一个活动，不需要添加酒店返回
+4. **交通活动位置要求**：
+   - **重要**：交通活动的 location 应该是**目的地（到达车站/机场）**的地址，而不是出发地地址
+   - 例如：从南京站坐火车到无锡站，交通活动的 location 应该是"无锡站"的地址
+   - 交通活动的 description 应该说明出发地和目的地，例如："从南京站出发，到达无锡站"
+5. **酒店位置一致性**：
+   - 同一天的住宿活动应该使用相同的酒店位置（相同的地址和坐标）
+   - 第二天的第一个活动（酒店）必须与前一天最后一个活动（酒店）使用相同的位置信息
+   - 如果需要在不同城市之间移动，请在交通活动后安排新的酒店
+6. **酒店信息要求**：
+   - 每个住宿活动必须包含完整的 location 信息（address 字段，建议包含 coordinates）
+   - 住宿活动的 name 应该是酒店名称
+   - 住宿活动的 description 应该包含酒店的特色、位置优势等信息
+   - 住宿活动的 estimatedCost 应该是每晚的价格
+
 JSON 格式示例：
 {
   "title": "行程标题",
@@ -157,14 +180,109 @@ JSON 格式示例：
         {
           "time": "09:00",
           "type": "transportation",
-          "name": "活动名称",
-          "description": "详细描述",
+          "name": "前往目的地",
+          "description": "从出发地出发，到达目的地",
           "location": {
-            "address": "具体地址"
+            "address": "目的地地址（到达车站/机场）"
           },
           "estimatedCost": 100,
           "duration": "2小时",
           "tips": ["建议1"]
+        },
+        {
+          "time": "15:00",
+          "type": "accommodation",
+          "name": "酒店名称",
+          "description": "酒店描述，位置优势等",
+          "location": {
+            "address": "酒店完整地址",
+            "coordinates": {
+              "lat": 39.9087,
+              "lng": 116.3975
+            }
+          },
+          "estimatedCost": 300,
+          "duration": "入住",
+          "tips": ["酒店小贴士"]
+        },
+        {
+          "time": "18:00",
+          "type": "restaurant",
+          "name": "餐厅名称",
+          "description": "餐厅描述",
+          "location": {
+            "address": "餐厅地址"
+          },
+          "estimatedCost": 100,
+          "duration": "1小时",
+          "tips": []
+        },
+        {
+          "time": "20:00",
+          "type": "accommodation",
+          "name": "酒店名称（同一天）",
+          "description": "返回酒店",
+          "location": {
+            "address": "酒店完整地址（与上面相同）",
+            "coordinates": {
+              "lat": 39.9087,
+              "lng": 116.3975
+            }
+          },
+          "estimatedCost": 0,
+          "duration": "休息",
+          "tips": []
+        }
+      ],
+      "estimatedCost": 500
+    },
+    {
+      "day": 2,
+      "date": "2024-01-02",
+      "activities": [
+        {
+          "time": "08:00",
+          "type": "accommodation",
+          "name": "酒店名称（与前一天相同）",
+          "description": "从酒店出发",
+          "location": {
+            "address": "酒店完整地址（与前一天相同）",
+            "coordinates": {
+              "lat": 39.9087,
+              "lng": 116.3975
+            }
+          },
+          "estimatedCost": 0,
+          "duration": "出发",
+          "tips": []
+        },
+        {
+          "time": "09:00",
+          "type": "attraction",
+          "name": "景点名称",
+          "description": "景点描述",
+          "location": {
+            "address": "景点地址"
+          },
+          "estimatedCost": 50,
+          "duration": "2小时",
+          "tips": []
+        },
+        {
+          "time": "20:00",
+          "type": "accommodation",
+          "name": "酒店名称（同一天）",
+          "description": "返回酒店",
+          "location": {
+            "address": "酒店完整地址（与当天第一个活动相同）",
+            "coordinates": {
+              "lat": 39.9087,
+              "lng": 116.3975
+            }
+          },
+          "estimatedCost": 0,
+          "duration": "休息",
+          "tips": []
         }
       ],
       "estimatedCost": 500
@@ -185,6 +303,13 @@ JSON 格式示例：
 3. 考虑同行人特点（如带孩子需要安排适合的活动）
 4. 包含具体的餐厅、景点推荐
 5. 提供实用的旅行建议
+6. **严格遵守住宿和行程安排规则**：
+   - 每天必须有住宿（最后一天除外）
+   - 每天从酒店出发（第一天可能是交通）
+   - 每天返回酒店（最后一天如果是交通返回，则不需要酒店）
+   - 酒店位置保持一致
+   - **交通活动的位置必须是目的地（到达车站/机场）的地址**
+7. **最后一天特殊处理**：如果最后一天是交通返回，则交通应该作为最后一个活动，不需要添加酒店返回
 
 只返回 JSON 数据，不要包含其他说明文字。`
 }
@@ -493,6 +618,9 @@ const parseTripPlanResponse = (response: string, request: TripRequest): TripPlan
       ? Object.values(parsed.budgetBreakdown).reduce((sum: number, val: any) => sum + Number(val), 0)
       : request.budget
 
+    // 处理每日行程，确保酒店位置一致性
+    const processedDailyPlans = processDailyPlans(parsed.dailyPlans || [], request)
+
     return {
       title: parsed.title || `${request.destination} ${request.days}日游`,
       destination: request.destination,
@@ -507,7 +635,7 @@ const parseTripPlanResponse = (response: string, request: TripRequest): TripPlan
         tips: [],
         summary: ''
       },
-      dailyPlans: parsed.dailyPlans || [],
+      dailyPlans: processedDailyPlans,
       budgetBreakdown: parsed.budgetBreakdown || {
         transportation: 0,
         accommodation: 0,
@@ -530,6 +658,328 @@ const parseTripPlanResponse = (response: string, request: TripRequest): TripPlan
     
     throw new Error(`解析行程计划失败: ${error.message || '未知错误'}。请重试。`)
   }
+}
+
+// 处理每日行程，确保酒店位置一致性
+const processDailyPlans = (dailyPlans: any[], request: TripRequest): DayPlan[] => {
+  if (!dailyPlans || dailyPlans.length === 0) {
+    return []
+  }
+
+  let previousDayHotel: Activity | null = null // 前一天晚上的酒店
+
+  return dailyPlans.map((dayPlan: any, dayIndex: number) => {
+    const activities: Activity[] = (dayPlan.activities || []).map((act: any) => ({
+      ...act,
+      location: act.location || {}
+    }))
+    const processedActivities: Activity[] = []
+
+    // 1. 查找当天的住宿活动
+    const accommodationActivities = activities.filter((act: any) => act.type === 'accommodation')
+    
+    // 2. 获取当天的酒店（优先使用有费用或描述详细的住宿活动）
+    let currentDayHotel: Activity | null = null
+    if (accommodationActivities.length > 0) {
+      // 选择费用最高或描述最详细的住宿活动作为当天酒店
+      currentDayHotel = accommodationActivities.reduce((prev: any, curr: any) => {
+        // 优先选择有完整地址的
+        if (curr.location?.address && !prev.location?.address) {
+          return curr
+        }
+        if (prev.location?.address && !curr.location?.address) {
+          return prev
+        }
+        // 其次选择费用最高的
+        if ((curr.estimatedCost || 0) > (prev?.estimatedCost || 0)) {
+          return curr
+        }
+        // 再次选择描述最详细的
+        if (curr.description && curr.description.length > (prev?.description?.length || 0)) {
+          return curr
+        }
+        return prev
+      }, accommodationActivities[0])
+    }
+
+    // 3. 处理第一天的特殊情况
+    if (dayIndex === 0) {
+      const firstActivity = activities[0]
+      
+      // 如果第一个活动是交通，从交通开始
+      if (firstActivity?.type === 'transportation') {
+        processedActivities.push(firstActivity)
+        // 处理其他非住宿活动
+        for (let i = 1; i < activities.length; i++) {
+          if (activities[i].type !== 'accommodation') {
+            processedActivities.push(activities[i])
+          }
+        }
+        // 交通后需要找到当天的酒店（可能在交通后）
+        if (!currentDayHotel && accommodationActivities.length > 0) {
+          // 找到交通后的第一个住宿活动
+          const hotelAfterTransport = accommodationActivities.find((act: any) => {
+            const actIndex = activities.findIndex((a: any) => a === act)
+            const transportIndex = activities.findIndex((a: any) => a === firstActivity)
+            return actIndex > transportIndex
+          })
+          if (hotelAfterTransport) {
+            currentDayHotel = hotelAfterTransport
+          } else {
+            // 如果没有找到，使用第一个住宿活动
+            currentDayHotel = accommodationActivities[0]
+          }
+        }
+      } else {
+        // 如果第一个活动不是交通，需要从酒店开始
+        // 如果有酒店，使用酒店；否则创建一个默认酒店
+        if (!currentDayHotel && accommodationActivities.length > 0) {
+          currentDayHotel = accommodationActivities[0]
+        }
+        if (!currentDayHotel) {
+          // 创建一个默认酒店作为第一个活动
+          currentDayHotel = {
+            time: '08:00',
+            type: 'accommodation',
+            name: `${request.destination} 酒店`,
+            description: '入住酒店',
+            location: {
+              address: `${request.destination} 市中心`
+            },
+            estimatedCost: 0,
+            duration: '入住',
+            tips: []
+          }
+        }
+        // 添加酒店作为第一个活动（从酒店出发）
+        processedActivities.push({
+          ...currentDayHotel,
+          time: activities[0]?.time || '08:00',
+          description: currentDayHotel.description || '从酒店出发',
+          estimatedCost: 0 // 出发不计费，入住时再计费
+        })
+        
+        // 处理其他非住宿活动
+        activities.forEach((activity: any) => {
+          if (activity.type !== 'accommodation' && activity !== firstActivity) {
+            processedActivities.push(activity)
+          }
+        })
+      }
+    } else {
+      // 4. 从第二天开始，第一个活动必须是前一天晚上的酒店
+      if (previousDayHotel) {
+        processedActivities.push({
+          ...previousDayHotel,
+          time: '08:00',
+          description: '从酒店出发',
+          estimatedCost: 0 // 出发不计费
+        })
+        // 更新当前天的酒店为前一天的酒店（如果当天没有新的酒店）
+        if (!currentDayHotel) {
+          currentDayHotel = previousDayHotel
+        }
+      } else if (currentDayHotel) {
+        // 如果前一天没有酒店，使用当天的酒店作为第一个活动
+        processedActivities.push({
+          ...currentDayHotel,
+          time: '08:00',
+          description: '从酒店出发',
+          estimatedCost: 0
+        })
+      } else {
+        // 如果既没有前一天的酒店，也没有当天的酒店，创建一个默认酒店
+        currentDayHotel = {
+          time: '08:00',
+          type: 'accommodation',
+          name: `${request.destination} 酒店`,
+          description: '入住酒店',
+          location: {
+            address: `${request.destination} 市中心`
+          },
+          estimatedCost: 0,
+          duration: '入住',
+          tips: []
+        }
+        processedActivities.push({
+          ...currentDayHotel,
+          time: '08:00',
+          description: '从酒店出发',
+          estimatedCost: 0
+        })
+      }
+      
+      // 处理当天的其他非住宿活动
+      activities.forEach((activity: any) => {
+        if (activity.type !== 'accommodation') {
+          processedActivities.push(activity)
+        }
+      })
+    }
+
+    // 5. 处理每天的结束活动
+    const lastActivity = processedActivities[processedActivities.length - 1]
+    const lastActivityInOriginal = activities[activities.length - 1]
+    
+    // 检查是否是最后一天，且最后一个活动是交通（返回）
+    if (isLastDay(dayIndex) && lastActivityInOriginal?.type === 'transportation') {
+      // 最后一天的最后一个活动是交通，不需要添加酒店返回
+      // 检查最后一个活动是否已经是交通
+      if (lastActivity?.type !== 'transportation') {
+        // 如果最后一个活动不是交通，可能是其他活动，需要确保交通是最后一个
+        // 移除最后添加的活动，然后添加交通活动
+        const transportationActivities = activities.filter((act: any) => act.type === 'transportation')
+        if (transportationActivities.length > 0) {
+          const lastTransportation = transportationActivities[transportationActivities.length - 1]
+          // 确保交通活动在最后
+          const nonTransportationActivities = processedActivities.filter((act: any) => act.type !== 'transportation')
+          processedActivities.length = 0
+          processedActivities.push(...nonTransportationActivities)
+          processedActivities.push(lastTransportation)
+        }
+      }
+      // 最后一天不需要酒店，直接返回
+      // 不需要更新 previousDayHotel，因为最后一天不需要酒店
+      return {
+        day: dayPlan.day || dayIndex + 1,
+        date: dayPlan.date || '',
+        activities: processedActivities,
+        estimatedCost: processedActivities.reduce((sum: number, act: Activity) => {
+          return sum + (act.estimatedCost || 0)
+        }, 0)
+      }
+    }
+    
+    // 非最后一天，确保最后一个是住宿活动（返回酒店）
+    // 确定当天的酒店（优先使用当天的酒店，否则使用前一天的酒店）
+    let endHotel: Activity | null = currentDayHotel || previousDayHotel
+    
+    // 如果当天有新的酒店（费用 > 0 或地址不同），使用新酒店
+    if (accommodationActivities.length > 0) {
+      // 优先选择有费用的住宿活动（表示入住）
+      const paidHotel = accommodationActivities.find((act: any) => act.estimatedCost > 0)
+      if (paidHotel) {
+        endHotel = paidHotel
+        currentDayHotel = paidHotel
+      } else {
+        // 如果没有有费用的，选择地址不同的（表示换酒店）
+        const differentAddressHotel = accommodationActivities.find((act: any) => 
+          act.location?.address && 
+          act.location?.address !== previousDayHotel?.location?.address
+        )
+        if (differentAddressHotel) {
+          endHotel = differentAddressHotel
+          currentDayHotel = differentAddressHotel
+        } else if (!currentDayHotel) {
+          // 如果都没有，使用第一个住宿活动
+          endHotel = accommodationActivities[0]
+          currentDayHotel = accommodationActivities[0]
+        }
+      }
+    }
+    
+    // 如果找到了酒店，确保最后一个活动是酒店
+    if (endHotel) {
+      const lastActivity = processedActivities[processedActivities.length - 1]
+      
+      // 检查最后一个活动是否已经是酒店
+      if (lastActivity?.type === 'accommodation') {
+        // 更新最后一个酒店活动，确保使用正确的酒店信息和位置
+        // 保留原有费用（如果是入住）或设置为 0（如果是返回）
+        const shouldKeepCost = lastActivity.estimatedCost > 0 && 
+                               !lastActivity.description?.includes('返回') &&
+                               !lastActivity.description?.includes('出发')
+        processedActivities[processedActivities.length - 1] = {
+          ...endHotel,
+          time: lastActivity.time || '20:00',
+          description: shouldKeepCost ? lastActivity.description : '返回酒店休息',
+          estimatedCost: shouldKeepCost ? lastActivity.estimatedCost : 0 // 保留入住费用，返回不计费
+        }
+      } else {
+        // 添加酒店作为最后一个活动
+        processedActivities.push({
+          ...endHotel,
+          time: '20:00',
+          description: '返回酒店休息',
+          estimatedCost: 0 // 返回不计费，费用已经在入住时计算
+        })
+      }
+    } else if (accommodationActivities.length > 0) {
+      // 如果没有找到酒店，使用最后一个住宿活动
+      const lastAccommodation = accommodationActivities[accommodationActivities.length - 1]
+      processedActivities.push({
+        ...lastAccommodation,
+        time: '20:00',
+        description: '返回酒店休息',
+        estimatedCost: 0
+      })
+      endHotel = lastAccommodation
+      currentDayHotel = lastAccommodation
+    } else if (dayIndex > 0 && previousDayHotel) {
+      // 如果当天没有住宿活动，但前一天有酒店，使用前一天的酒店
+      processedActivities.push({
+        ...previousDayHotel,
+        time: '20:00',
+        description: '返回酒店休息',
+        estimatedCost: 0
+      })
+      endHotel = previousDayHotel
+      currentDayHotel = previousDayHotel
+    }
+
+    // 6. 确保同一天的酒店位置一致
+    // 统一当天的酒店位置信息（使用 endHotel，因为它是最新的）
+    if (endHotel && endHotel.location) {
+      const hotelLocation = {
+        address: endHotel.location.address || '',
+        coordinates: endHotel.location.coordinates
+      }
+      
+      // 更新所有住宿活动的位置
+      processedActivities.forEach((activity: Activity) => {
+        if (activity.type === 'accommodation') {
+          activity.location = {
+            ...hotelLocation,
+            address: hotelLocation.address || activity.location?.address || ''
+          }
+        }
+      })
+      
+      // 更新 currentDayHotel 的位置
+      if (currentDayHotel) {
+        currentDayHotel.location = hotelLocation
+      }
+    }
+
+    // 7. 更新前一天的酒店为当天的酒店（用于下一天）
+    if (endHotel) {
+      previousDayHotel = {
+        ...endHotel,
+        location: endHotel.location ? {
+          address: endHotel.location.address || '',
+          coordinates: endHotel.location.coordinates
+        } : undefined
+      }
+    }
+
+    // 8. 计算当天的预估费用（排除出发和返回的酒店活动，只计算入住的费用）
+    const estimatedCost = processedActivities.reduce((sum: number, act: Activity) => {
+      // 只计算有费用的活动（入住酒店的费用）
+      if (act.type === 'accommodation' && act.estimatedCost > 0) {
+        return sum + act.estimatedCost
+      } else if (act.type !== 'accommodation') {
+        return sum + (act.estimatedCost || 0)
+      }
+      return sum
+    }, 0)
+
+    return {
+      day: dayPlan.day || dayIndex + 1,
+      date: dayPlan.date || '',
+      activities: processedActivities,
+      estimatedCost
+    }
+  })
 }
 
 // 检查 AI 配置是否完整

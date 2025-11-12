@@ -563,12 +563,28 @@ const Timeline = ({ trip }: TimelineProps) => {
                       <div className="activity-header">
                         <span className="activity-icon">{getActivityIcon(activity.type)}</span>
                         <span className="activity-type">{getActivityTypeName(activity.type)}</span>
-                        <span className="activity-cost">¥{activity.estimatedCost}</span>
+                        {activity.estimatedCost > 0 && (
+                          <span className="activity-cost">¥{activity.estimatedCost}</span>
+                        )}
+                        {activity.type === 'accommodation' && activity.estimatedCost === 0 && (
+                          <span className="activity-cost" style={{ color: '#64748b', fontSize: '12px' }}>
+                            {activity.description?.includes('出发') ? '从酒店出发' : 
+                             activity.description?.includes('返回') ? '返回酒店' : '酒店'}
+                          </span>
+                        )}
                       </div>
                       <h4>{activity.name}</h4>
                       <p>{activity.description}</p>
-                      {activity.location && (
-                        <p className="activity-location">📍 {activity.location.address}</p>
+                      {activity.location && activity.location.address && (
+                        <p className="activity-location">
+                          📍 {activity.location.address}
+                          {activity.type === 'accommodation' && (
+                            <span style={{ marginLeft: '8px', fontSize: '12px', color: '#64748b' }}>
+                              {activity.description?.includes('出发') ? '(出发地点)' : 
+                               activity.description?.includes('返回') ? '(返回地点)' : '(入住地点)'}
+                            </span>
+                          )}
+                        </p>
                       )}
                       {activity.duration && (
                         <p className="activity-duration">⏱️ {activity.duration}</p>
