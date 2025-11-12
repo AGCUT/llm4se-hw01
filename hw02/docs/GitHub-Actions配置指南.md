@@ -54,25 +54,38 @@
 #### ALIYUN_REGISTRY_USERNAME
 
 - **Name**: `ALIYUN_REGISTRY_USERNAME`
-- **Value**: 您的阿里云 AccessKey ID（例如：`LTAI5txxxxxxxxxxxxx`）
+- **Value**: 您的阿里云 AccessKey ID
+  - 获取方式：登录 [阿里云控制台](https://www.aliyun.com/) → [AccessKey 管理](https://usercenter.console.aliyun.com/#/manage/ak)
+  - 示例格式：`LTAI5txxxxxxxxxxxxx`（请使用您自己的 AccessKey ID）
 - **说明**：可以使用阿里云 AccessKey ID 作为用户名，也可以使用容器镜像服务创建的用户名
-- **⚠️ 注意**：请使用您自己的 AccessKey ID，不要使用文档中的示例值
+- **⚠️ 注意**：
+  - 请使用您自己的 AccessKey ID
+  - **不要将 AccessKey ID 提交到代码仓库**
 
 #### ALIYUN_REGISTRY_PASSWORD
 
 - **Name**: `ALIYUN_REGISTRY_PASSWORD`
-- **Value**: 您的阿里云 AccessKey Secret（例如：`xxxxxxxxxxxxxxxxxxxxxxxxxxxxx`）
+- **Value**: 您的阿里云 AccessKey Secret
+  - 获取方式：与 AccessKey ID 一起创建（只在创建时显示一次）
+  - 示例格式：`xxxxxxxxxxxxxxxxxxxxxxxxxxxxx`（请使用您自己的 AccessKey Secret）
 - **说明**：可以使用阿里云 AccessKey Secret 作为密码，也可以使用容器镜像服务创建的密码
-- **⚠️ 注意**：
+- **⚠️ 重要提示**：
   - AccessKey Secret 只在创建时显示一次，请妥善保管
-  - 请使用您自己的 AccessKey Secret，不要使用文档中的示例值
   - **不要将 AccessKey Secret 提交到代码仓库**
+  - **不要将 AccessKey Secret 分享给他人**
+  - 如果不小心泄露，请立即在阿里云控制台删除并重新创建
+  - 建议为 GitHub Actions 创建专用的 AccessKey，而不是使用主账号的 AccessKey
 
 #### ALIYUN_NAMESPACE
 
 - **Name**: `ALIYUN_NAMESPACE`
 - **Value**: 阿里云容器镜像服务命名空间（例如：`your-username` 或 `your-org`）
 - **说明**：在阿里云容器镜像服务控制台中查看或创建命名空间
+- **获取方式**：
+  1. 登录 [阿里云容器镜像服务](https://www.aliyun.com/product/acr)
+  2. 点击「实例列表」→ 选择您的实例
+  3. 点击「命名空间」→ 查看或创建命名空间
+  4. 记录命名空间名称
 
 ### 3. 验证 Secrets
 
@@ -176,18 +189,30 @@ gzip ai-travel-planner-latest.tar
 
 **错误：Authentication failed**
 
-- 检查 `ALIYUN_REGISTRY_USERNAME` 和 `ALIYUN_REGISTRY_PASSWORD` 是否正确
-- 检查阿里云访问凭证是否有效
+- **原因**：AccessKey ID 或 AccessKey Secret 错误
+- **解决方案**：
+  1. 检查 `ALIYUN_REGISTRY_USERNAME` 和 `ALIYUN_REGISTRY_PASSWORD` 是否正确
+  2. 在 [阿里云控制台](https://usercenter.console.aliyun.com/#/manage/ak) 检查 AccessKey 状态
+  3. 确认 AccessKey 是否已启用
+  4. 如果 AccessKey 已禁用或删除，请重新创建
 
 **错误：Namespace not found**
 
-- 检查 `ALIYUN_NAMESPACE` 是否正确
-- 检查命名空间是否存在
+- **原因**：命名空间名称错误或不存在
+- **解决方案**：
+  1. 检查 `ALIYUN_NAMESPACE` 是否正确
+  2. 在 [阿里云容器镜像服务](https://www.aliyun.com/product/acr) 控制台检查命名空间是否存在
+  3. 确认命名空间名称是否区分大小写
+  4. 如果命名空间不存在，请先创建命名空间
 
 **错误：Permission denied**
 
-- 检查访问凭证是否有推送权限
-- 检查命名空间权限设置
+- **原因**：AccessKey 没有推送权限或命名空间权限不足
+- **解决方案**：
+  1. 检查 AccessKey 是否有容器镜像服务的读写权限
+  2. 在阿里云控制台检查命名空间权限设置
+  3. 确认 AccessKey 是否有访问该命名空间的权限
+  4. 如果权限不足，请在阿里云控制台配置相应的权限
 
 ### 2. 镜像推送失败
 
@@ -227,6 +252,11 @@ ping registry.cn-hangzhou.aliyuncs.com
 3. **监控构建状态**：设置构建通知，及时了解构建状态
 4. **使用缓存**：启用 Docker 构建缓存，加快构建速度
 5. **多平台构建**：支持 `linux/amd64` 和 `linux/arm64` 平台
+6. **安全最佳实践**：
+   - **不要将 AccessKey Secret 提交到代码仓库**
+   - 使用 GitHub Secrets 安全存储敏感信息
+   - 定期轮换 AccessKey
+   - 为 GitHub Actions 创建专用的 AccessKey
 
 ---
 
@@ -236,10 +266,10 @@ ping registry.cn-hangzhou.aliyuncs.com
 - [阿里云容器镜像服务](https://www.aliyun.com/product/acr)
 - [Docker 官方文档](https://docs.docker.com/)
 - [GitHub Actions Docker 示例](https://docs.github.com/en/actions/publishing-packages/publishing-docker-images)
+- [阿里云 AccessKey 管理](https://usercenter.console.aliyun.com/#/manage/ak)
 
 ---
 
 ## 支持
 
 如有问题，请提交 Issue 或联系维护者。
-
