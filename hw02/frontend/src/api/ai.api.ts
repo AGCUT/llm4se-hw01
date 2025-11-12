@@ -667,6 +667,8 @@ const processDailyPlans = (dailyPlans: any[], request: TripRequest): DayPlan[] =
   }
 
   let previousDayHotel: Activity | null = null // 前一天晚上的酒店
+  const totalDays = dailyPlans.length
+  const isLastDay = (dayIndex: number) => dayIndex === totalDays - 1
 
   return dailyPlans.map((dayPlan: any, dayIndex: number) => {
     const activities: Activity[] = (dayPlan.activities || []).map((act: any) => ({
@@ -818,28 +820,51 @@ const processDailyPlans = (dailyPlans: any[], request: TripRequest): DayPlan[] =
     }
 
     // 5. 处理每天的结束活动
-    const lastActivity = processedActivities[processedActivities.length - 1]
-    const lastActivityInOriginal = activities[activities.length - 1]
-    
     // 检查是否是最后一天，且最后一个活动是交通（返回）
-    if (isLastDay(dayIndex) && lastActivityInOriginal?.type === 'transportation') {
+    const lastActivityInOriginal = activities[activities.length - 1]
+    const isLastActivityTransportation = lastActivityInOriginal?.type === 'transportation'
+    
+    if (isLastDay(dayIndex) && isLastActivityTransportation) {
       // 最后一天的最后一个活动是交通，不需要添加酒店返回
-      // 检查最后一个活动是否已经是交通
-      if (lastActivity?.type !== 'transportation') {
-        // 如果最后一个活动不是交通，可能是其他活动，需要确保交通是最后一个
-        // 移除最后添加的活动，然后添加交通活动
-        const transportationActivities = activities.filter((act: any) => act.type === 'transportation')
-        if (transportationActivities.length > 0) {
-          const lastTransportation = transportationActivities[transportationActivities.length - 1]
-          // 确保交通活动在最后
-          const nonTransportationActivities = processedActivities.filter((act: any) => act.type !== 'transportation')
+      // 需要确保交通活动在最后
+      const transportationActivities = activities.filter((act: any) => act.type === 'transportation')
+      if (transportationActivities.length > 0) {
+        const lastTransportation = transportationActivities[transportationActivities.length - 1]
+        
+        // 检查 processedActivities 中是否已经有这个交通活动
+        const hasTransportation = processedActivities.some((act: any) => 
+          act.type === 'transportation'
+        )
+        
+        if (!hasTransportation) {
+          // 如果交通活动还没有被添加，添加它
+          processedActivities.push(lastTransportation)
+        } else {
+          // 如果已经有交通活动，确保最后一个交通在最后
+          // 保留酒店出发活动（第一个活动，如果是住宿类型）
+          const hotelStart = processedActivities.length > 0 && 
+                            processedActivities[0].type === 'accommodation' && 
+                            processedActivities[0].description?.includes('出发')
+                            ? processedActivities[0]
+                            : null
+          
+          // 获取所有非交通非住宿活动
+          const nonTransportationNonAccommodation = processedActivities.filter((act: any) => 
+            act.type !== 'transportation' && 
+            !(act.type === 'accommodation' && act.description?.includes('出发'))
+          )
+          
+          // 重新组织：酒店出发 -> 其他活动 -> 交通返回
           processedActivities.length = 0
-          processedActivities.push(...nonTransportationActivities)
+          if (hotelStart) {
+            processedActivities.push(hotelStart)
+          }
+          processedActivities.push(...nonTransportationNonAccommodation)
           processedActivities.push(lastTransportation)
         }
       }
-      // 最后一天不需要酒店，直接返回
-      // 不需要更新 previousDayHotel，因为最后一天不需要酒店
+      
+      // 最后一天不需要酒店返回，直接返回
       return {
         day: dayPlan.day || dayIndex + 1,
         date: dayPlan.date || '',
