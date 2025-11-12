@@ -289,16 +289,198 @@ const callDeepSeekAPI = async (prompt: string, config: AIConfig): Promise<string
   return data.choices[0].message.content
 }
 
+// 提取 JSON 字符串（使用括号匹配确保完整性）
+const extractJSON = (text: string): string => {
+  // 方法1: 尝试从 Markdown 代码块中提取
+  const codeBlockMatch = text.match(/```(?:json)?\s*([\s\S]*?)\s*```/)
+  if (codeBlockMatch && codeBlockMatch[1]) {
+    return codeBlockMatch[1].trim()
+  }
+  
+  // 方法2: 使用括号匹配找到完整的 JSON 对象
+  const firstBrace = text.indexOf('{')
+  if (firstBrace === -1) {
+    throw new Error('无法找到 JSON 起始位置')
+  }
+  
+  let braceCount = 0
+  let inString = false
+  let escapeNext = false
+  let jsonEnd = -1
+  
+  for (let i = firstBrace; i < text.length; i++) {
+    const char = text[i]
+    
+    if (escapeNext) {
+      escapeNext = false
+      continue
+    }
+    
+    if (char === '\\') {
+      escapeNext = true
+      continue
+    }
+    
+    if (char === '"' && !escapeNext) {
+      inString = !inString
+      continue
+    }
+    
+    if (!inString) {
+      if (char === '{') {
+        braceCount++
+      } else if (char === '}') {
+        braceCount--
+        if (braceCount === 0) {
+          jsonEnd = i
+          break
+        }
+      }
+    }
+  }
+  
+  if (jsonEnd === -1) {
+    throw new Error('无法找到完整的 JSON 对象')
+  }
+  
+  return text.substring(firstBrace, jsonEnd + 1)
+}
+
 // 解析 AI 返回的行程计划
 const parseTripPlanResponse = (response: string, request: TripRequest): TripPlan => {
   try {
-    // 提取 JSON 部分
-    const jsonMatch = response.match(/\{[\s\S]*\}/)
-    if (!jsonMatch) {
-      throw new Error('无法解析 AI 返回的数据')
+    console.log('=== 解析 AI 返回的行程计划 ===')
+    console.log('原始响应长度:', response.length)
+    console.log('原始响应前500字符:', response.substring(0, 500))
+    
+    // 提取 JSON 字符串
+    let jsonString: string
+    try {
+      jsonString = extractJSON(response)
+      console.log('成功提取 JSON')
+    } catch (extractError: any) {
+      console.error('提取 JSON 失败:', extractError)
+      // 如果提取失败，尝试简单的方法
+      const firstBrace = response.indexOf('{')
+      const lastBrace = response.lastIndexOf('}')
+      if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+        jsonString = response.substring(firstBrace, lastBrace + 1)
+        console.log('使用简单方法提取 JSON')
+      } else {
+        throw new Error('无法找到 JSON 内容')
+      }
     }
-
-    const parsed = JSON.parse(jsonMatch[0])
+    
+    // 清理 JSON 字符串
+    // 由于已经使用括号匹配提取，理论上应该是完整的 JSON
+    // 但仍然需要处理一些常见问题
+    
+    // 1. 移除多余的空白字符
+    jsonString = jsonString.trim()
+    
+    // 2. 处理 AI 返回的省略号模式（[...] 和 {...}）
+    // 这些模式不是有效的 JSON，需要替换为有效的空数组或空对象
+    console.log('检查省略号模式...')
+    
+    // 先统计省略号出现的次数
+    const ellipsisInArray = (jsonString.match(/\[\s*\.\.\.\s*\]/g) || []).length
+    const ellipsisInObject = (jsonString.match(/\{\s*\.\.\.\s*\}/g) || []).length
+    
+    if (ellipsisInArray > 0) {
+      console.log(`发现 ${ellipsisInArray} 处数组省略号 [...]`)
+    }
+    if (ellipsisInObject > 0) {
+      console.log(`发现 ${ellipsisInObject} 处对象省略号 {...}`)
+    }
+    
+    // 使用正则表达式替换（简单高效）
+    // 处理数组中的省略号 [...]
+    jsonString = jsonString.replace(/\[\s*\.\.\.\s*\]/g, '[]')
+    
+    // 处理对象中的省略号 {...}
+    jsonString = jsonString.replace(/\{\s*\.\.\.\s*\}/g, '{}')
+    
+    // 处理可能的多行格式
+    jsonString = jsonString.replace(/\[\s*\n\s*\.\.\.\s*\n\s*\]/g, '[]')
+    jsonString = jsonString.replace(/\{\s*\n\s*\.\.\.\s*\n\s*\}/g, '{}')
+    
+    // 3. 移除可能的注释（虽然 JSON 不支持注释，但 AI 可能会添加）
+    // 注意：只在字符串外移除注释
+    jsonString = jsonString.replace(/\/\/[^\n"']*$/gm, '') // 移除单行注释（不在字符串中）
+    jsonString = jsonString.replace(/\/\*[\s\S]*?\*\//g, '') // 移除多行注释
+    
+    // 4. 修复多余的逗号（在对象和数组的末尾）
+    jsonString = jsonString.replace(/,(\s*[}\]])/g, '$1') // 移除末尾多余的逗号
+    
+    // 5. 处理末尾的省略号（如果 JSON 被截断）
+    if (jsonString.includes('...')) {
+      // 检查是否在字符串内部（这是合法的）
+      // 如果不在字符串内部，则可能是截断的 JSON
+      const lastThreeDots = jsonString.lastIndexOf('...')
+      if (lastThreeDots !== -1) {
+        // 检查这三个点是否在字符串内
+        let checkInString = false
+        let checkEscapeNext = false
+        
+        for (let j = 0; j < lastThreeDots; j++) {
+          const char = jsonString[j]
+          if (checkEscapeNext) {
+            checkEscapeNext = false
+            continue
+          }
+          if (char === '\\') {
+            checkEscapeNext = true
+            continue
+          }
+          if (char === '"') {
+            checkInString = !checkInString
+          }
+        }
+        
+        const isInString = checkInString
+        
+        if (!isInString) {
+          // 不在字符串内，可能是截断的 JSON
+          // 尝试找到最后一个完整的结构
+          const lastBrace = jsonString.lastIndexOf('}')
+          const lastBracket = jsonString.lastIndexOf(']')
+          const lastComplete = Math.max(lastBrace, lastBracket)
+          
+          if (lastComplete > 0 && lastComplete < lastThreeDots) {
+            // 省略号在最后，可能是截断标记
+            console.log('检测到末尾省略号，可能表示内容被截断')
+          }
+        }
+      }
+    }
+    
+    jsonString = jsonString.trim()
+    
+    console.log('清理后的 JSON 长度:', jsonString.length)
+    console.log('清理后的 JSON 前200字符:', jsonString.substring(0, 200))
+    
+    // 尝试解析 JSON
+    let parsed: any
+    try {
+      parsed = JSON.parse(jsonString)
+    } catch (parseError: any) {
+      console.error('JSON 解析失败:', parseError)
+      console.error('尝试解析的 JSON:', jsonString.substring(0, 500))
+      
+      // 如果解析失败，尝试修复常见问题
+      try {
+        // 尝试修复未闭合的字符串
+        jsonString = jsonString.replace(/(".*?)"([^,}\]]*?)"([^,}\]]*?)"/g, '$1\\"$2\\"$3"')
+        // 尝试修复未转义的特殊字符
+        jsonString = jsonString.replace(/\n/g, '\\n').replace(/\r/g, '\\r').replace(/\t/g, '\\t')
+        parsed = JSON.parse(jsonString)
+      } catch (retryError) {
+        // 如果还是失败，输出更详细的错误信息
+        console.error('JSON 解析重试失败:', retryError)
+        console.error('原始响应:', response)
+        throw new Error(`JSON 解析失败: ${parseError.message}。请检查 AI 返回的内容是否为有效的 JSON 格式。`)
+      }
+    }
 
     // 计算日期
     const startDate = request.startDate || new Date().toISOString().split('T')[0]
@@ -334,9 +516,19 @@ const parseTripPlanResponse = (response: string, request: TripRequest): TripPlan
         other: 0
       }
     }
-  } catch (error) {
+  } catch (error: any) {
     console.error('解析行程计划失败:', error)
-    throw new Error('解析行程计划失败，请重试')
+    console.error('错误类型:', error?.constructor?.name)
+    console.error('错误消息:', error?.message)
+    console.error('错误堆栈:', error?.stack)
+    console.error('原始响应:', response.substring(0, 1000))
+    
+    // 提供更详细的错误信息
+    if (error.message?.includes('JSON')) {
+      throw new Error(`解析行程计划失败: ${error.message}\n\n请确保 AI 返回的是有效的 JSON 格式。如果问题持续，请尝试重新生成行程。`)
+    }
+    
+    throw new Error(`解析行程计划失败: ${error.message || '未知错误'}。请重试。`)
   }
 }
 

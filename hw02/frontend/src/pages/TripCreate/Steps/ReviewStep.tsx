@@ -8,9 +8,10 @@ interface ReviewStepProps {
   plan: TripPlan
   onSave: () => void
   onRegenerate: () => void
+  isSaving?: boolean
 }
 
-const ReviewStep = ({ plan, onSave, onRegenerate }: ReviewStepProps) => {
+const ReviewStep = ({ plan, onSave, onRegenerate, isSaving = false }: ReviewStepProps) => {
   const [activeDay, setActiveDay] = useState(1)
 
   // 获取活动图标
@@ -212,8 +213,8 @@ const ReviewStep = ({ plan, onSave, onRegenerate }: ReviewStepProps) => {
         <Button variant="secondary" onClick={onRegenerate}>
           🔄 重新生成
         </Button>
-        <Button onClick={onSave} size="large">
-          💾 保存行程
+        <Button onClick={onSave} size="large" disabled={isSaving} loading={isSaving}>
+          💾 {isSaving ? '保存中...' : '保存行程'}
         </Button>
       </div>
     </div>
