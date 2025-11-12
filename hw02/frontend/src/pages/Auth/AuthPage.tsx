@@ -106,10 +106,8 @@ export const AuthPage = () => {
         await signIn(formData.email, formData.password)
         console.log('登录成功，准备跳转...')
         
-        // 延迟一下，确保状态已更新
-        setTimeout(() => {
-          navigate('/')
-        }, 100)
+        // 立即跳转，因为 loading 状态已在 signIn 中设置为 false
+        navigate('/')
       } else {
         // 注册
         console.log('开始注册流程...')
