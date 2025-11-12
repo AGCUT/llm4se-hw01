@@ -223,10 +223,10 @@ const TripMap = ({ trip, height = '600px', centerOnLocation }: TripMapProps) => 
       for (let index = 0; index < needGeocode.length; index++) {
         const loc = needGeocode[index]
         
-        // 添加延迟避免 API 限流（每个请求间隔 2 秒，避免并发限制）
-        // 高德地图免费版限制：QPS（每秒查询数）有限制，建议间隔 2 秒以上
+        // 添加延迟避免 API 限流（每个请求间隔 1000ms，避免并发限制）
+        // 高德地图免费版限制：QPS（每秒查询数）有限制，间隔 1000ms 可以平衡速度和限流
         if (index > 0) {
-          const waitTime = 2000 // 2 秒
+          const waitTime = 1000 // 1000 毫秒（1秒）
           console.log(`[TripMap] 等待 ${waitTime}ms 后处理下一个地址（避免 API 限流）...`)
           await new Promise(resolve => setTimeout(resolve, waitTime))
         }
