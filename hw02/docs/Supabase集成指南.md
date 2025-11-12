@@ -9,18 +9,18 @@
 
 ---
 
-## 一、环境变量配置
+## 一、环境变量配�?
 
 ### 1.1 前端环境变量
 
-编辑 `frontend/.env.local` 文件（如果不存在，复制 `.env.example`）：
+编辑 `frontend/.env.local` 文件（如果不存在，复�?`.env.example`）：
 
 ```bash
 # API配置
 VITE_API_URL=http://localhost:3000
 VITE_WS_URL=ws://localhost:3000
 
-# Supabase配置（重要！）
+# Supabase配置（重要！�?
 VITE_SUPABASE_URL=https://xxxxx.supabase.co
 VITE_SUPABASE_ANON_KEY=eyJhbGc...你的anon_key
 
@@ -34,7 +34,7 @@ VITE_XUNFEI_API_KEY=your_xunfei_api_key
 
 ### 1.2 后端环境变量
 
-编辑 `backend/.env` 文件：
+编辑 `backend/.env` 文件�?
 
 ```bash
 # Supabase配置
@@ -42,7 +42,7 @@ SUPABASE_URL=https://xxxxx.supabase.co
 SUPABASE_SERVICE_KEY=eyJhbGc...你的service_role_key
 SUPABASE_ANON_KEY=eyJhbGc...你的anon_key
 
-# 数据库直连（可选，用于高级操作）
+# 数据库直连（可选，用于高级操作�?
 DATABASE_URL=postgresql://postgres:your_password@db.xxxxx.supabase.co:5432/postgres
 
 # 其他配置
@@ -52,11 +52,11 @@ PORT=3000
 
 ---
 
-## 二、前端集成
+## 二、前端集�?
 
-### 2.1 创建Supabase客户端
+### 2.1 创建Supabase客户�?
 
-创建 `frontend/src/config/supabase.config.ts`：
+创建 `frontend/src/config/supabase.config.ts`�?
 
 ```typescript
 import { createClient } from '@supabase/supabase-js'
@@ -81,7 +81,7 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   }
 })
 
-// 数据库类型（可选，用于TypeScript类型提示）
+// 数据库类型（可选，用于TypeScript类型提示�?
 export type Database = {
   public: {
     Tables: {
@@ -127,7 +127,7 @@ export type Database = {
 
 ### 2.2 认证功能实现
 
-更新 `frontend/src/api/auth.api.ts`：
+更新 `frontend/src/api/auth.api.ts`�?
 
 ```typescript
 import { supabase } from '@/config/supabase.config'
@@ -159,7 +159,7 @@ export const signInWithEmail = async (email: string, password: string) => {
   return data
 }
 
-// 退出登录
+// 退出登�?
 export const signOut = async () => {
   const { error } = await supabase.auth.signOut()
   if (error) throw error
@@ -180,7 +180,7 @@ export const resetPassword = async (email: string) => {
   if (error) throw error
 }
 
-// OAuth登录（Google示例）
+// OAuth登录（Google示例�?
 export const signInWithGoogle = async () => {
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: 'google',
@@ -193,7 +193,7 @@ export const signInWithGoogle = async () => {
   return data
 }
 
-// 监听认证状态变化
+// 监听认证状态变�?
 export const onAuthStateChange = (callback: (event: string, session: any) => void) => {
   return supabase.auth.onAuthStateChange(callback)
 }
@@ -201,12 +201,12 @@ export const onAuthStateChange = (callback: (event: string, session: any) => voi
 
 ### 2.3 行程API实现
 
-更新 `frontend/src/api/trip.api.ts`：
+更新 `frontend/src/api/trip.api.ts`�?
 
 ```typescript
 import { supabase } from '@/config/supabase.config'
 
-// 获取用户所有行程
+// 获取用户所有行�?
 export const getTrips = async () => {
   const { data, error } = await supabase
     .from('trips')
@@ -284,12 +284,12 @@ export const subscribeToTrip = (tripId: string, callback: (payload: any) => void
 
 ### 2.4 费用API实现
 
-更新 `frontend/src/api/expense.api.ts`：
+更新 `frontend/src/api/expense.api.ts`�?
 
 ```typescript
 import { supabase } from '@/config/supabase.config'
 
-// 获取行程的所有费用
+// 获取行程的所有费�?
 export const getExpenses = async (tripId: string) => {
   const { data, error } = await supabase
     .from('expenses')
@@ -345,7 +345,7 @@ export const getExpenseStats = async (tripId: string) => {
   
   if (error) throw error
   
-  // 按类别汇总
+  // 按类别汇�?
   const stats = data.reduce((acc, expense) => {
     acc[expense.category] = (acc[expense.category] || 0) + Number(expense.amount)
     return acc
@@ -357,7 +357,7 @@ export const getExpenseStats = async (tripId: string) => {
 
 ### 2.5 文件上传实现
 
-更新 `frontend/src/services/storageService.ts`：
+更新 `frontend/src/services/storageService.ts`�?
 
 ```typescript
 import { supabase } from '@/config/supabase.config'
@@ -416,7 +416,7 @@ export const deleteFile = async (bucket: string, path: string) => {
 
 ### 2.6 使用React Hook封装
 
-更新 `frontend/src/hooks/useAuth.ts`：
+更新 `frontend/src/hooks/useAuth.ts`�?
 
 ```typescript
 import { useEffect, useState } from 'react'
@@ -436,7 +436,7 @@ export const useAuth = () => {
       setLoading(false)
     })
     
-    // 监听认证状态变化
+    // 监听认证状态变�?
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (_event, session) => {
         setSession(session)
@@ -452,7 +452,7 @@ export const useAuth = () => {
 }
 ```
 
-更新 `frontend/src/hooks/useTrips.ts`：
+更新 `frontend/src/hooks/useTrips.ts`�?
 
 ```typescript
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
@@ -513,18 +513,18 @@ export const useDeleteTrip = () => {
 
 ## 三、后端集成（可选）
 
-如果您需要后端服务器处理复杂业务逻辑：
+如果您需要后端服务器处理复杂业务逻辑�?
 
-### 3.1 安装Supabase客户端
+### 3.1 安装Supabase客户�?
 
 ```bash
 cd backend
 npm install @supabase/supabase-js
 ```
 
-### 3.2 创建Supabase客户端
+### 3.2 创建Supabase客户�?
 
-创建 `backend/src/config/supabase.config.ts`：
+创建 `backend/src/config/supabase.config.ts`�?
 
 ```typescript
 import { createClient } from '@supabase/supabase-js'
@@ -553,7 +553,7 @@ export const supabase = createClient(
 
 ---
 
-## 四、实时功能示例
+## 四、实时功能示�?
 
 ### 4.1 实时监听行程变化
 
@@ -601,7 +601,7 @@ export const CollaborativeEditor = ({ tripId }: { tripId: string }) => {
   useEffect(() => {
     const channel = supabase.channel(`room:${tripId}`)
     
-    // 监听其他用户的操作
+    // 监听其他用户的操�?
     channel
       .on('broadcast', { event: 'cursor-move' }, (payload) => {
         console.log('User moved cursor:', payload)
@@ -625,7 +625,7 @@ export const CollaborativeEditor = ({ tripId }: { tripId: string }) => {
     }
   }, [tripId])
   
-  return <div>{/* 编辑器 */}</div>
+  return <div>{/* 编辑�?*/}</div>
 }
 ```
 
@@ -639,30 +639,30 @@ export const CollaborativeEditor = ({ tripId }: { tripId: string }) => {
 2. 点击 "New bucket"
 3. 创建以下桶：
 
-#### avatars（用户头像 - Public）
+#### avatars（用户头�?- Public�?
 - Name: `avatars`
-- Public: ✅
+- Public: �?
 - File size limit: 2MB
 - Allowed MIME types: `image/*`
 
-#### receipts（费用凭证 - Private）
+#### receipts（费用凭�?- Private�?
 - Name: `receipts`
-- Public: ❌
+- Public: �?
 - File size limit: 5MB
 - Allowed MIME types: `image/*,application/pdf`
 
-#### trip-images（行程图片 - Public）
+#### trip-images（行程图�?- Public�?
 - Name: `trip-images`
-- Public: ✅
+- Public: �?
 - File size limit: 5MB
 - Allowed MIME types: `image/*`
 
 ### 5.2 配置存储策略
 
-为每个桶设置访问策略：
+为每个桶设置访问策略�?
 
 ```sql
--- avatars桶策略
+-- avatars桶策�?
 CREATE POLICY "Public avatars are viewable by everyone"
 ON storage.objects FOR SELECT
 USING (bucket_id = 'avatars');
@@ -674,7 +674,7 @@ WITH CHECK (
   AND auth.uid()::text = (storage.foldername(name))[1]
 );
 
--- receipts桶策略
+-- receipts桶策�?
 CREATE POLICY "Users can view own receipts"
 ON storage.objects FOR SELECT
 USING (
@@ -692,60 +692,60 @@ WITH CHECK (
 
 ---
 
-## 六、常见问题
+## 六、常见问�?
 
 ### Q1: RLS导致查询返回空数据？
 
 **原因**：行级安全（RLS）策略阻止了访问
 
-**解决**：
+**解决**�?
 1. 确保用户已登录（`auth.uid()` 不为空）
 2. 检查RLS策略是否正确
-3. 在开发阶段可以临时禁用RLS：
+3. 在开发阶段可以临时禁用RLS�?
    ```sql
    ALTER TABLE trips DISABLE ROW LEVEL SECURITY;
    ```
 
 ### Q2: 实时订阅不工作？
 
-**解决**：
-1. 确保表已启用实时功能：
+**解决**�?
+1. 确保表已启用实时功能�?
    ```sql
    ALTER PUBLICATION supabase_realtime ADD TABLE trips;
    ```
-2. 检查网络连接
-3. 查看浏览器控制台是否有错误
+2. 检查网络连�?
+3. 查看浏览器控制台是否有错�?
 
-### Q3: 文件上传失败？
+### Q3: 文件上传失败�?
 
-**解决**：
-1. 检查存储桶是否已创建
-2. 检查文件大小限制
+**解决**�?
+1. 检查存储桶是否已创�?
+2. 检查文件大小限�?
 3. 检查MIME类型限制
-4. 检查存储策略是否正确
+4. 检查存储策略是否正�?
 
 ### Q4: 跨域（CORS）问题？
 
-**解决**：
+**解决**�?
 在Supabase Dashboard中：
-1. Settings → API
+1. Settings �?API
 2. 添加允许的域名到 "Site URL"
 
-### Q5: 性能优化？
+### Q5: 性能优化�?
 
-**建议**：
+**建议**�?
 1. 使用索引优化查询
 2. 使用 `select()` 只获取需要的字段
-3. 使用分页（`.range(from, to)`）
-4. 使用客户端缓存（TanStack Query）
+3. 使用分页（`.range(from, to)`�?
+4. 使用客户端缓存（TanStack Query�?
 
 ---
 
-## 七、最佳实践
+## 七、最佳实�?
 
 ### 7.1 类型安全
 
-使用Supabase CLI生成TypeScript类型：
+使用Supabase CLI生成TypeScript类型�?
 
 ```bash
 npm install -g supabase
@@ -759,11 +759,11 @@ supabase gen types typescript --local > src/types/supabase.types.ts
 ```typescript
 const handleSupabaseError = (error: any) => {
   if (error.code === 'PGRST116') {
-    // 未找到记录
-    return { error: '记录不存在' }
+    // 未找到记�?
+    return { error: '记录不存�? }
   } else if (error.code === '23505') {
     // 唯一约束冲突
-    return { error: '数据已存在' }
+    return { error: '数据已存�? }
   } else {
     return { error: '操作失败，请重试' }
   }
@@ -772,23 +772,23 @@ const handleSupabaseError = (error: any) => {
 
 ### 7.3 安全建议
 
-1. ⚠️ **永远不要在前端使用 `service_role` key**
-2. ✅ 始终启用RLS
-3. ✅ 使用环境变量存储密钥
-4. ✅ 定期轮换API密钥
-5. ✅ 为敏感操作添加额外验证
+1. ⚠️ **永远不要在前端使�?`service_role` key**
+2. �?始终启用RLS
+3. �?使用环境变量存储密钥
+4. �?定期轮换API密钥
+5. �?为敏感操作添加额外验�?
 
 ---
 
-## 八、下一步
+## 八、下一�?
 
-1. ✅ 完成数据库设计和创建
-2. ✅ 安装依赖并配置环境变量
-3. ⏳ 实现认证功能
-4. ⏳ 实现核心API
-5. ⏳ 实现实时功能
-6. ⏳ 实现文件上传
-7. ⏳ 测试和优化
+1. �?完成数据库设计和创建
+2. �?安装依赖并配置环境变�?
+3. �?实现认证功能
+4. �?实现核心API
+5. �?实现实时功能
+6. �?实现文件上传
+7. �?测试和优�?
 
 **祝您使用Supabase开发顺利！** 🚀
 
