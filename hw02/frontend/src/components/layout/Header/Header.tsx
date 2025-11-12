@@ -1,7 +1,6 @@
 // Header组件
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useAuth } from '@/hooks/useAuth'
 import { useAuthStore } from '@/store/authStore'
 import { isAIConfigured } from '@/api/ai.api'
 import AIConfigModal from '@/components/common/AIConfigModal'
@@ -9,17 +8,21 @@ import './Header.module.css'
 
 const Header = () => {
   const navigate = useNavigate()
-  const { isAuthenticated, user, profile } = useAuth()
-  const { signOut } = useAuthStore()
+  const { user, profile, signOut } = useAuthStore()
+  const isAuthenticated = !!user
   const [showAIConfig, setShowAIConfig] = useState(false)
   const aiConfigured = isAIConfigured()
 
   const handleLogout = async () => {
     try {
-      await signOut()
+      // 先跳转到登录页，避免卡在受保护路由的验证状态
       navigate('/login')
+      // 然后执行退出操作
+      await signOut()
     } catch (error) {
       console.error('登出失败:', error)
+      // 即使退出失败，也确保跳转到登录页
+      navigate('/login')
     }
   }
 
@@ -50,21 +53,13 @@ const Header = () => {
 
           {isAuthenticated ? (
             <>
-              <button onClick={() => navigate('/dashboard')} className="nav-link">
-                我的行程
-              </button>
-              <button onClick={() => navigate('/trip/create')} className="nav-link">
-                创建行程
-              </button>
-              <button onClick={() => navigate('/expense')} className="nav-link">
-                费用管理
-              </button>
               <div className="user-menu">
                 <span className="user-name">
                   {profile?.username || user?.email}
                 </span>
-                <button onClick={handleLogout} className="btn-logout">
-                  退出
+                <button onClick={handleLogout} className="btn-logout" title="退出登录">
+                  <span className="logout-icon">🚪</span>
+                  <span className="logout-text">退出</span>
                 </button>
               </div>
             </>

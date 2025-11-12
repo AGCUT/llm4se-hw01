@@ -149,13 +149,13 @@ export const useAuthStore = create<AuthState>()(
         set({ loading: true, error: null })
         try {
           await apiSignOut()
-          set({ user: null, session: null, profile: null })
+          // 立即清除用户状态，避免路由检查时卡住
+          set({ user: null, session: null, profile: null, loading: false })
         } catch (error: any) {
           const errorMessage = error.message || '登出失败，请重试'
-          set({ error: errorMessage })
+          // 即使退出失败，也清除用户状态
+          set({ user: null, session: null, profile: null, loading: false, error: errorMessage })
           throw error
-        } finally {
-          set({ loading: false })
         }
       },
 

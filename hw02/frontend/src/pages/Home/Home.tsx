@@ -95,10 +95,11 @@ const Home = () => {
       )}
 
       <div className="hero-section">
-        <h1 className="hero-title">🌍 AI 旅行规划师</h1>
-        <p className="hero-subtitle">
-          智能规划您的完美旅程
-        </p>
+        <div className="hero-content">
+          <h1 className="hero-title">AI 旅行规划师</h1>
+          <p className="hero-subtitle">
+            智能规划，轻松出行
+          </p>
 
         {/* AI 配置状态提示 */}
         <div className="ai-status-badge">
@@ -116,31 +117,31 @@ const Home = () => {
 
         {isAuthenticated ? (
           <div className="welcome-section">
-            <h2>欢迎回来，{profile?.username || user?.email}！</h2>
+            <h2>欢迎回来，{profile?.username || user?.email}</h2>
+            <p className="welcome-subtitle">开始规划您的完美旅程</p>
             <div className="action-buttons">
               <button 
-                className="btn btn-primary"
-                onClick={() => navigate('/dashboard')}
-              >
-                我的行程
-              </button>
-              <button 
-                className="btn btn-secondary"
+                className="btn btn-primary btn-large"
                 onClick={() => navigate('/trip/create')}
               >
-                创建新行程
+                ✈️ 创建行程
+              </button>
+              <button 
+                className="btn btn-secondary btn-large"
+                onClick={() => navigate('/dashboard')}
+              >
+                📋 我的行程
               </button>
             </div>
           </div>
         ) : (
           <div className="auth-section">
-            <p className="auth-prompt">开始您的旅行规划之旅</p>
             <div className="auth-buttons">
               <button 
                 className="btn btn-primary"
                 onClick={() => navigate('/register')}
               >
-                立即注册
+                免费注册
               </button>
               <button 
                 className="btn btn-secondary"
@@ -151,59 +152,53 @@ const Home = () => {
             </div>
           </div>
         )}
+        </div>
       </div>
 
+      {/* 核心功能 */}
       <div className="features-section">
         <h2 className="features-title">核心功能</h2>
         <div className="features-grid">
           <div className="feature-card">
             <div className="feature-icon">🤖</div>
             <h3>AI 智能规划</h3>
-            <p>基于您的偏好和预算，智能生成个性化行程</p>
-          </div>
-          <div className="feature-card">
-            <div className="feature-icon">💰</div>
-            <h3>费用管理</h3>
-            <p>实时记录和统计旅行费用，预算一目了然</p>
+            <p>基于偏好和预算，智能生成个性化行程</p>
           </div>
           <div className="feature-card">
             <div className="feature-icon">🗺️</div>
             <h3>地图导航</h3>
-            <p>集成高德地图，景点路线规划更便捷</p>
+            <p>集成高德地图，自动标注景点位置</p>
           </div>
           <div className="feature-card">
-            <div className="feature-icon">🎤</div>
-            <h3>语音记账</h3>
-            <p>支持语音输入，随时随地记录费用</p>
+            <div className="feature-icon">💰</div>
+            <h3>费用管理</h3>
+            <p>实时记录和统计旅行费用</p>
           </div>
         </div>
       </div>
 
-      <div className="cta-section">
-        <h2>准备好开始您的旅程了吗？</h2>
-        {!isAuthenticated ? (
-          <button 
-            className="btn btn-large btn-primary"
-            onClick={() => navigate('/register')}
-          >
-            免费注册
-          </button>
-        ) : !aiConfigured ? (
-          <button 
-            className="btn btn-large btn-primary"
-            onClick={() => setShowAIConfig(true)}
-          >
-            配置 AI 开始规划
-          </button>
-        ) : (
-          <button 
-            className="btn btn-large btn-primary"
-            onClick={() => navigate('/trip/create')}
-          >
-            立即创建行程
-          </button>
-        )}
-      </div>
+      {/* CTA 区域 */}
+      {!isAuthenticated && (
+        <div className="cta-section">
+          <div className="cta-content">
+            <h2>开始您的旅行规划</h2>
+            <div className="cta-buttons">
+              <button 
+                className="btn btn-large btn-primary"
+                onClick={() => navigate('/register')}
+              >
+                免费注册
+              </button>
+              <button 
+                className="btn btn-large btn-secondary"
+                onClick={() => navigate('/login')}
+              >
+                登录
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 快速访问 AI 配置按钮（固定在右下角） */}
       <button 
