@@ -63,9 +63,14 @@ gzip ai-travel-planner-latest.tar
 
 在 GitHub 仓库的 Settings → Secrets and variables → Actions 中添加：
 
-- `ALIYUN_REGISTRY_USERNAME`: 阿里云 AccessKey ID（例如：`LTAI5tPSWhPjQEgbjRem3yad`）
-- `ALIYUN_REGISTRY_PASSWORD`: 阿里云 AccessKey Secret（例如：`QdGFfa5kZvl1u5Q9noJmF5dkMi0mhv`）
+- `ALIYUN_REGISTRY_USERNAME`: 您的阿里云 AccessKey ID
+- `ALIYUN_REGISTRY_PASSWORD`: 您的阿里云 AccessKey Secret
 - `ALIYUN_NAMESPACE`: 阿里云容器镜像服务命名空间（例如：`your-username` 或 `your-org`）
+
+**⚠️ 重要提示**：
+- 请使用您自己的 AccessKey ID 和 AccessKey Secret
+- **不要将 AccessKey Secret 提交到代码仓库**
+- AccessKey Secret 只在创建时显示一次，请妥善保管
 
 **详细配置步骤**：请查看 [快速配置GitHub-Actions-Secrets](./docs/快速配置GitHub-Actions-Secrets.md)
 

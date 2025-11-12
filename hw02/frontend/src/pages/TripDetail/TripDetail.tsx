@@ -6,6 +6,7 @@ import type { Trip } from '@/config/supabase.config'
 import Button from '@/components/common/Button/Button'
 import Timeline from './Timeline'
 import MapView from './MapView'
+import ExpenseView from './ExpenseView'
 import './TripDetail.css'
 
 const TripDetail = () => {
@@ -13,7 +14,7 @@ const TripDetail = () => {
   const navigate = useNavigate()
   const [trip, setTrip] = useState<Trip | null>(null)
   const [loading, setLoading] = useState(true)
-  const [activeView, setActiveView] = useState<'timeline' | 'map'>('timeline')
+  const [activeView, setActiveView] = useState<'timeline' | 'map' | 'expense'>('timeline')
 
   useEffect(() => {
     if (id) {
@@ -80,9 +81,6 @@ const TripDetail = () => {
           </div>
         </div>
         <div className="trip-actions">
-          <Button variant="secondary" onClick={() => navigate(`/expense?trip=${id}`)}>
-            记账
-          </Button>
           <Button variant="danger" onClick={handleDelete}>
             删除
           </Button>
@@ -103,12 +101,19 @@ const TripDetail = () => {
         >
           🗺️ 地图
         </button>
+        <button
+          className={`view-tab ${activeView === 'expense' ? 'active' : ''}`}
+          onClick={() => setActiveView('expense')}
+        >
+          💰 记账
+        </button>
       </div>
 
       {/* 内容区域 */}
       <div className="trip-content">
         {activeView === 'timeline' && <Timeline trip={trip} />}
         {activeView === 'map' && <MapView trip={trip} />}
+        {activeView === 'expense' && <ExpenseView trip={trip} />}
       </div>
     </div>
   )

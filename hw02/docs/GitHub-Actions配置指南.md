@@ -54,15 +54,19 @@
 #### ALIYUN_REGISTRY_USERNAME
 
 - **Name**: `ALIYUN_REGISTRY_USERNAME`
-- **Value**: 阿里云 AccessKey ID（例如：`LTAI5tPSWhPjQEgbjRem3yad`）
+- **Value**: 您的阿里云 AccessKey ID（例如：`LTAI5txxxxxxxxxxxxx`）
 - **说明**：可以使用阿里云 AccessKey ID 作为用户名，也可以使用容器镜像服务创建的用户名
+- **⚠️ 注意**：请使用您自己的 AccessKey ID，不要使用文档中的示例值
 
 #### ALIYUN_REGISTRY_PASSWORD
 
 - **Name**: `ALIYUN_REGISTRY_PASSWORD`
-- **Value**: 阿里云 AccessKey Secret（例如：`QdGFfa5kZvl1u5Q9noJmF5dkMi0mhv`）
+- **Value**: 您的阿里云 AccessKey Secret（例如：`xxxxxxxxxxxxxxxxxxxxxxxxxxxxx`）
 - **说明**：可以使用阿里云 AccessKey Secret 作为密码，也可以使用容器镜像服务创建的密码
-- **⚠️ 注意**：AccessKey Secret 只在创建时显示一次，请妥善保管
+- **⚠️ 注意**：
+  - AccessKey Secret 只在创建时显示一次，请妥善保管
+  - 请使用您自己的 AccessKey Secret，不要使用文档中的示例值
+  - **不要将 AccessKey Secret 提交到代码仓库**
 
 #### ALIYUN_NAMESPACE
 
