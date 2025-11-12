@@ -247,39 +247,146 @@ export const reverseGeocode = async (lng: number, lat: number): Promise<string |
 }
 
 /**
- * 路线规划 - 驾车路线
+ * 路线规划 - 驾车路线（使用 Web 服务 API）
+ * 文档：https://lbs.amap.com/api/webservice/guide/api/direction
  */
+export interface RouteResult {
+  distance: number // 距离（米）
+  duration: number // 时间（秒）
+  tolls: number // 过路费（元）
+  tollDistance: number // 收费路段距离（米）
+  paths: Array<{
+    distance: number
+    duration: number
+    tolls: number
+    tollDistance: number
+    steps: Array<{
+      instruction: string
+      road: string
+      distance: number
+      duration: number
+      polyline: string
+    }>
+  }>
+}
+
 export const planRoute = async (
-  start: { lng: number; lat: number },
-  end: { lng: number; lat: number }
-): Promise<any> => {
+  start: { lng: number; lat: number } | string,
+  end: { lng: number; lat: number } | string
+): Promise<RouteResult | null> => {
   try {
-    if (!AMap) {
-      await initAMap('temp-container')
+    console.log(`[planRoute] 开始路径规划`)
+    
+    // 获取 API Key
+    const apiKey = import.meta.env.VITE_AMAP_KEY || AMAP_CONFIG.key
+    if (!apiKey) {
+      console.error('[planRoute] ⚠️ 高德地图 API Key 未配置')
+      return null
     }
-
-    return new Promise((resolve, reject) => {
-      const driving = new AMap.Driving({
-        map: null,
-        panel: null
-      })
-
-      driving.search(
-        new AMap.LngLat(start.lng, start.lat),
-        new AMap.LngLat(end.lng, end.lat),
-        (status: string, result: any) => {
-          if (status === 'complete' && result.routes && result.routes.length > 0) {
-            resolve(result)
-          } else {
-            console.warn('路线规划失败:', result)
-            reject(new Error('路线规划失败'))
-          }
-        }
-      )
+    
+    // 处理起点和终点（可能是坐标对象或地址字符串）
+    let startStr: string
+    let endStr: string
+    
+    if (typeof start === 'string') {
+      startStr = start
+    } else {
+      startStr = `${start.lng},${start.lat}`
+    }
+    
+    if (typeof end === 'string') {
+      endStr = end
+    } else {
+      endStr = `${end.lng},${end.lat}`
+    }
+    
+    console.log(`[planRoute] 起点: ${startStr}, 终点: ${endStr}`)
+    
+    // 使用高德地图 Web 服务 API 进行路径规划
+    // 文档：https://lbs.amap.com/api/webservice/guide/api/direction
+    const url = `https://restapi.amap.com/v3/direction/driving`
+    const params = new URLSearchParams({
+      key: apiKey,
+      origin: startStr,
+      destination: endStr,
+      extensions: 'all', // 返回详细信息
+      output: 'JSON'
     })
+
+    const fullUrl = `${url}?${params.toString()}`
+    console.log(`[planRoute] 调用 Web 服务 API: ${fullUrl}`)
+
+    try {
+      console.log(`[planRoute] 开始发送 fetch 请求...`)
+      const fetchStartTime = Date.now()
+      const response = await fetch(fullUrl, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      })
+      const fetchDuration = Date.now() - fetchStartTime
+      console.log(`[planRoute] fetch 请求完成，耗时: ${fetchDuration}ms`)
+      console.log(`[planRoute] 响应状态: ${response.status} ${response.statusText}`)
+      
+      if (!response.ok) {
+        console.error(`[planRoute] ⚠️ HTTP 错误: ${response.status} ${response.statusText}`)
+        const errorText = await response.text()
+        console.error(`[planRoute] 错误内容:`, errorText)
+        return null
+      }
+
+      console.log(`[planRoute] 开始解析响应 JSON...`)
+      const data = await response.json()
+      console.log(`[planRoute] 响应数据:`, data)
+      console.log(`[planRoute] 响应数据 status:`, data.status)
+      console.log(`[planRoute] 响应数据 info:`, data.info)
+
+      if (data.status === '1' && data.route && data.route.paths && data.route.paths.length > 0) {
+        const path = data.route.paths[0] // 使用第一条路径
+        const route: RouteResult = {
+          distance: path.distance || 0,
+          duration: path.duration || 0,
+          tolls: path.tolls || 0,
+          tollDistance: path.tollDistance || 0,
+          paths: data.route.paths.map((p: any) => ({
+            distance: p.distance || 0,
+            duration: p.duration || 0,
+            tolls: p.tolls || 0,
+            tollDistance: p.tollDistance || 0,
+            steps: p.steps?.map((step: any) => ({
+              instruction: step.instruction || '',
+              road: step.road || '',
+              distance: step.distance || 0,
+              duration: step.duration || 0,
+              polyline: step.polyline || ''
+            })) || []
+          }))
+        }
+        
+        console.log(`[planRoute] ✅ 路径规划成功:`, {
+          distance: route.distance,
+          duration: route.duration,
+          tolls: route.tolls
+        })
+        return route
+      } else {
+        console.warn(`[planRoute] ⚠️ 路径规划失败:`, {
+          status: data.status,
+          info: data.info
+        })
+        return null
+      }
+    } catch (fetchError: any) {
+      console.error(`[planRoute] ❌ 网络请求异常:`, fetchError)
+      console.error(`[planRoute] 错误类型:`, fetchError?.constructor?.name)
+      console.error(`[planRoute] 错误消息:`, fetchError?.message)
+      console.error(`[planRoute] 错误堆栈:`, fetchError?.stack)
+      return null
+    }
   } catch (error: any) {
-    console.error('路线规划错误:', error)
-    throw error
+    console.error(`[planRoute] ❌ 路径规划错误:`, error)
+    return null
   }
 }
 
