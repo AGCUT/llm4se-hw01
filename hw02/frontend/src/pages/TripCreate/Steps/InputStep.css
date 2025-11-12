@@ -1,0 +1,256 @@
+/* 输入步骤样式 */
+.input-step {
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.step-header {
+  text-align: center;
+  margin-bottom: 40px;
+}
+
+.step-header h2 {
+  font-size: 28px;
+  font-weight: 700;
+  color: #1a202c;
+  margin-bottom: 10px;
+}
+
+.step-header p {
+  font-size: 16px;
+  color: #718096;
+}
+
+/* 语音输入区域 */
+.voice-section {
+  text-align: center;
+  padding: 30px;
+  background: linear-gradient(135deg, #f7fafc 0%, #edf2f7 100%);
+  border-radius: 12px;
+  margin-bottom: 30px;
+}
+
+.voice-btn {
+  padding: 20px 40px;
+  font-size: 18px;
+  font-weight: 600;
+  border: 3px dashed #667eea;
+  border-radius: 12px;
+  background: white;
+  color: #667eea;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.voice-btn:hover:not(:disabled) {
+  background: #667eea;
+  color: white;
+  transform: scale(1.05);
+}
+
+.voice-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.voice-btn.listening {
+  background: #667eea;
+  color: white;
+  border-style: solid;
+  animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(102, 126, 234, 0.7);
+  }
+  50% {
+    box-shadow: 0 0 0 20px rgba(102, 126, 234, 0);
+  }
+}
+
+.voice-hint {
+  margin-top: 15px;
+  padding: 12px;
+  background: #e6f3ff;
+  border-radius: 8px;
+  font-size: 14px;
+  color: #0066cc;
+  text-align: left;
+  animation: fadeIn 0.3s ease;
+}
+
+.voice-parsing {
+  margin-top: 15px;
+  padding: 12px;
+  background: #fff3cd;
+  border-radius: 8px;
+  border-left: 4px solid #ffc107;
+  font-size: 14px;
+  color: #856404;
+  text-align: left;
+  animation: fadeIn 0.3s ease;
+}
+
+.voice-interim {
+  margin-top: 15px;
+  padding: 12px;
+  background: #fff9e6;
+  border-radius: 8px;
+  border-left: 4px solid #ffc107;
+  font-size: 14px;
+  color: #856404;
+  text-align: left;
+  animation: fadeIn 0.3s ease;
+}
+
+.voice-interim-label {
+  font-weight: 600;
+  margin-right: 8px;
+}
+
+.voice-result {
+  margin-top: 15px;
+  padding: 12px;
+  background: white;
+  border-radius: 8px;
+  border-left: 4px solid #28a745;
+  font-size: 14px;
+  color: #2d3748;
+  text-align: left;
+  animation: fadeIn 0.3s ease;
+}
+
+.voice-result-label {
+  font-weight: 600;
+  color: #28a745;
+  margin-right: 8px;
+}
+
+.voice-error {
+  margin-top: 15px;
+  padding: 12px;
+  background: #ffe6e6;
+  border-radius: 8px;
+  border-left: 4px solid #dc3545;
+  font-size: 14px;
+  color: #721c24;
+  text-align: left;
+  animation: fadeIn 0.3s ease;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.voice-retry-btn {
+  padding: 6px 12px;
+  background: #dc3545;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.voice-retry-btn:hover {
+  background: #c82333;
+  transform: scale(1.05);
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* 表单样式 */
+.trip-form {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.form-group label {
+  font-size: 15px;
+  font-weight: 600;
+  color: #2d3748;
+}
+
+.form-group input,
+.form-group textarea {
+  padding: 12px 16px;
+  border: 2px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 15px;
+  transition: all 0.2s;
+}
+
+.form-group input:focus,
+.form-group textarea:focus {
+  outline: none;
+  border-color: #667eea;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.form-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 20px;
+}
+
+/* 标签组 */
+.tag-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.tag {
+  padding: 8px 16px;
+  border: 2px solid #e2e8f0;
+  border-radius: 20px;
+  background: white;
+  font-size: 14px;
+  font-weight: 500;
+  color: #4a5568;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.tag:hover {
+  border-color: #cbd5e0;
+  background: #f7fafc;
+}
+
+.tag.active {
+  background: #667eea;
+  color: white;
+  border-color: #667eea;
+}
+
+/* 响应式 */
+@media (max-width: 640px) {
+  .form-row {
+    grid-template-columns: 1fr;
+  }
+
+  .voice-btn {
+    padding: 15px 30px;
+    font-size: 16px;
+  }
+}
+

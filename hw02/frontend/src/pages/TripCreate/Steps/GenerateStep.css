@@ -1,0 +1,286 @@
+/* 生成步骤样式 */
+.generate-step {
+  max-width: 900px;
+  margin: 0 auto;
+  display: flex;
+  gap: 40px;
+}
+
+.generate-content {
+  flex: 1;
+}
+
+/* AI 动画 */
+.ai-animation {
+  text-align: center;
+  margin: 40px 0;
+}
+
+.globe-container {
+  position: relative;
+  width: 150px;
+  height: 150px;
+  margin: 0 auto;
+}
+
+.globe {
+  font-size: 80px;
+  animation: rotate 3s linear infinite;
+}
+
+@keyframes rotate {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.orbit {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  border: 2px solid #667eea;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  opacity: 0.3;
+}
+
+.orbit-1 {
+  width: 100px;
+  height: 100px;
+  animation: orbit 2s linear infinite;
+}
+
+.orbit-2 {
+  width: 130px;
+  height: 130px;
+  animation: orbit 3s linear infinite reverse;
+}
+
+.orbit-3 {
+  width: 160px;
+  height: 160px;
+  animation: orbit 4s linear infinite;
+}
+
+@keyframes orbit {
+  from {
+    transform: translate(-50%, -50%) rotate(0deg);
+  }
+  to {
+    transform: translate(-50%, -50%) rotate(360deg);
+  }
+}
+
+/* 进度条 */
+.progress-section {
+  margin: 40px 0;
+}
+
+.progress-bar {
+  width: 100%;
+  height: 40px;
+  background: #f7fafc;
+  border-radius: 20px;
+  overflow: hidden;
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding-right: 15px;
+  transition: width 0.5s ease;
+  border-radius: 20px;
+}
+
+.progress-text {
+  color: white;
+  font-weight: 700;
+  font-size: 16px;
+}
+
+.status-text {
+  text-align: center;
+  margin-top: 15px;
+  font-size: 16px;
+  color: #4a5568;
+  font-weight: 500;
+}
+
+/* 提示信息 */
+.tips-section {
+  margin: 40px 0;
+  padding: 30px;
+  background: #f7fafc;
+  border-radius: 12px;
+}
+
+.tips-section h3 {
+  font-size: 20px;
+  font-weight: 600;
+  color: #2d3748;
+  margin-bottom: 15px;
+}
+
+.tips-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.tips-list li {
+  padding: 12px 0;
+  padding-left: 30px;
+  position: relative;
+  color: #4a5568;
+  line-height: 1.6;
+}
+
+.tips-list li::before {
+  content: '✓';
+  position: absolute;
+  left: 0;
+  color: #48bb78;
+  font-weight: 700;
+  font-size: 18px;
+}
+
+/* 错误提示 */
+.error-section {
+  text-align: center;
+  padding: 40px;
+}
+
+.error-icon {
+  font-size: 80px;
+  margin-bottom: 20px;
+}
+
+.error-section h3 {
+  font-size: 24px;
+  font-weight: 700;
+  color: #c53030;
+  margin-bottom: 15px;
+}
+
+.error-message {
+  font-size: 16px;
+  color: #4a5568;
+  margin-bottom: 30px;
+}
+
+.error-tips {
+  background: #fff5f5;
+  border: 1px solid #feb2b2;
+  border-radius: 8px;
+  padding: 20px;
+  margin-bottom: 30px;
+  text-align: left;
+}
+
+.error-tips h4 {
+  color: #c53030;
+  margin-bottom: 10px;
+}
+
+.error-tips ul {
+  margin: 0;
+  padding-left: 20px;
+}
+
+.error-tips li {
+  color: #4a5568;
+  line-height: 1.8;
+}
+
+.error-actions {
+  display: flex;
+  gap: 15px;
+  justify-content: center;
+}
+
+.btn-retry,
+.btn-back {
+  padding: 12px 24px;
+  border: none;
+  border-radius: 8px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-retry {
+  background: #667eea;
+  color: white;
+}
+
+.btn-retry:hover {
+  background: #5568d3;
+}
+
+.btn-back {
+  background: #e2e8f0;
+  color: #4a5568;
+}
+
+.btn-back:hover {
+  background: #cbd5e0;
+}
+
+/* 行程预览 */
+.request-preview {
+  flex-shrink: 0;
+  width: 280px;
+  padding: 24px;
+  background: #f7fafc;
+  border-radius: 12px;
+  height: fit-content;
+}
+
+.request-preview h4 {
+  font-size: 18px;
+  font-weight: 600;
+  color: #2d3748;
+  margin-bottom: 20px;
+}
+
+.preview-item {
+  display: flex;
+  justify-content: space-between;
+  padding: 12px 0;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.preview-item:last-child {
+  border-bottom: none;
+}
+
+.preview-label {
+  font-size: 14px;
+  color: #718096;
+}
+
+.preview-value {
+  font-size: 14px;
+  font-weight: 600;
+  color: #2d3748;
+}
+
+/* 响应式 */
+@media (max-width: 768px) {
+  .generate-step {
+    flex-direction: column;
+  }
+
+  .request-preview {
+    width: 100%;
+  }
+}
+

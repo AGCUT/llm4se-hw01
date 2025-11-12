@@ -1,0 +1,11 @@
+{
+  "name": "AI旅行规划师",
+  "short_name": "旅行规划",
+  "description": "智能AI旅行规划Web应用",
+  "start_url": "/",
+  "display": "standalone",
+  "theme_color": "#3B82F6",
+  "background_color": "#ffffff",
+  "icons": []
+}
+

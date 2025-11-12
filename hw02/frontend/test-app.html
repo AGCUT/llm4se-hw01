@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>应用诊断</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+      max-width: 900px;
+      margin: 40px auto;
+      padding: 20px;
+      background: #f7fafc;
+    }
+    .container {
+      background: white;
+      border-radius: 12px;
+      padding: 30px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    }
+    h1 {
+      color: #1a202c;
+      border-bottom: 3px solid #667eea;
+      padding-bottom: 10px;
+    }
+    .status-item {
+      padding: 15px;
+      margin: 15px 0;
+      border-radius: 8px;
+      border-left: 4px solid #667eea;
+      background: #f7fafc;
+    }
+    .success {
+      border-left-color: #48bb78;
+      background: #f0fff4;
+    }
+    .error {
+      border-left-color: #f56565;
+      background: #fff5f5;
+    }
+    .warning {
+      border-left-color: #ed8936;
+      background: #fffaf0;
+    }
+    button {
+      background: #667eea;
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 16px;
+      margin: 5px;
+    }
+    button:hover {
+      background: #5568d3;
+    }
+    pre {
+      background: #2d3748;
+      color: #e2e8f0;
+      padding: 15px;
+      border-radius: 6px;
+      overflow-x: auto;
+      font-size: 14px;
+    }
+    .step {
+      background: #edf2f7;
+      padding: 15px;
+      margin: 10px 0;
+      border-radius: 6px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🔍 应用诊断工具</h1>
+    <p>这个页面帮助您诊断为什么首页没有显示内容</p>
+
+    <h2>📋 诊断步骤</h2>
+
+    <div class="step">
+      <h3>步骤 1: 检查环境变量</h3>
+      <p>确保 <code>.env.local</code> 文件存在并且配置正确</p>
+      <button onclick="checkEnv()">检查环境变量</button>
+      <div id="env-result"></div>
+    </div>
+
+    <div class="step">
+      <h3>步骤 2: 检查控制台错误</h3>
+      <p>打开浏览器开发者工具（F12）→ Console 标签</p>
+      <p>如果看到红色错误，请复制错误信息</p>
+    </div>
+
+    <div class="step">
+      <h3>步骤 3: 检查网络请求</h3>
+      <p>开发者工具 → Network 标签 → 刷新页面</p>
+      <p>查看是否有失败的请求（红色）</p>
+    </div>
+
+    <div class="step">
+      <h3>步骤 4: 检查 DOM 结构</h3>
+      <p>开发者工具 → Elements 标签</p>
+      <p>检查 <code>&lt;div id="root"&gt;</code> 里面是否有内容</p>
+    </div>
+
+    <h2>🛠️ 常见问题和解决方案</h2>
+
+    <div class="status-item error">
+      <h4>问题 1: 白屏 + 控制台无错误</h4>
+      <p><strong>可能原因:</strong> CSS 模块加载失败或路径问题</p>
+      <p><strong>解决方案:</strong></p>
+      <ul>
+        <li>清除浏览器缓存 (Ctrl + Shift + Delete)</li>
+        <li>强制刷新 (Ctrl + Shift + R)</li>
+        <li>重启开发服务器</li>
+      </ul>
+    </div>
+
+    <div class="status-item error">
+      <h4>问题 2: 控制台显示 "Cannot find module"</h4>
+      <p><strong>可能原因:</strong> 组件导入路径错误</p>
+      <p><strong>解决方案:</strong></p>
+      <ul>
+        <li>检查错误信息中的模块名称</li>
+        <li>验证文件是否存在</li>
+        <li>检查文件名大小写</li>
+      </ul>
+    </div>
+
+    <div class="status-item error">
+      <h4>问题 3: "Uncaught SyntaxError"</h4>
+      <p><strong>可能原因:</strong> 代码语法错误</p>
+      <p><strong>解决方案:</strong></p>
+      <ul>
+        <li>查看错误信息指向的文件和行号</li>
+        <li>检查该文件的语法</li>
+      </ul>
+    </div>
+
+    <div class="status-item warning">
+      <h4>问题 4: Zustand 持久化问题</h4>
+      <p><strong>可能原因:</strong> LocalStorage 数据损坏</p>
+      <p><strong>解决方案:</strong></p>
+      <button onclick="clearStorage()">清除 LocalStorage</button>
+    </div>
+
+    <h2>🔧 快速修复工具</h2>
+
+    <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+      <button onclick="clearCache()">清除缓存</button>
+      <button onclick="clearStorage()">清除存储</button>
+      <button onclick="testSupabase()">测试 Supabase</button>
+      <button onclick="window.location.reload()">刷新页面</button>
+      <button onclick="window.location.href='http://127.0.0.1:5173/'">访问首页</button>
+    </div>
+
+    <h2>📝 诊断报告</h2>
+    <div id="report"></div>
+  </div>
+
+  <script>
+    function checkEnv() {
+      const result = document.getElementById('env-result')
+      result.innerHTML = `
+        <div style="margin-top: 15px;">
+          <p><strong>注意:</strong> 环境变量只能在实际应用中检查，不能在此页面检查</p>
+          <p>请在开发服务器启动时查看终端输出</p>
+          <p>或者检查 <code>frontend/.env.local</code> 文件是否存在</p>
+        </div>
+      `
+    }
+
+    function clearCache() {
+      if (confirm('确定要清除浏览器缓存吗？')) {
+        alert('请手动清除:\n1. Ctrl + Shift + Delete\n2. 选择"缓存的图像和文件"\n3. 点击"清除数据"')
+      }
+    }
+
+    function clearStorage() {
+      try {
+        localStorage.clear()
+        sessionStorage.clear()
+        alert('✅ LocalStorage 和 SessionStorage 已清除！\n请刷新页面。')
+      } catch (error) {
+        alert('❌ 清除失败: ' + error.message)
+      }
+    }
+
+    function testSupabase() {
+      alert('Supabase 测试需要在实际应用中进行\n请访问: http://127.0.0.1:5173/ 并打开控制台查看')
+    }
+
+    // 生成诊断报告
+    window.onload = function() {
+      const report = document.getElementById('report')
+      const checks = []
+
+      // 检查 LocalStorage
+      try {
+        const authStorage = localStorage.getItem('auth-storage')
+        checks.push({
+          name: 'LocalStorage',
+          status: 'success',
+          message: authStorage ? '有认证数据' : '无认证数据（正常）'
+        })
+      } catch (e) {
+        checks.push({
+          name: 'LocalStorage',
+          status: 'error',
+          message: '无法访问: ' + e.message
+        })
+      }
+
+      // 检查浏览器
+      checks.push({
+        name: '浏览器',
+        status: 'success',
+        message: navigator.userAgent.split(/[()]/)[1] || 'Unknown'
+      })
+
+      // 检查屏幕尺寸
+      checks.push({
+        name: '屏幕',
+        status: 'success',
+        message: `${window.innerWidth}x${window.innerHeight}`
+      })
+
+      // 显示报告
+      report.innerHTML = checks.map(check => `
+        <div class="status-item ${check.status}">
+          <strong>${check.name}:</strong> ${check.message}
+        </div>
+      `).join('')
+    }
+  </script>
+</body>
+</html>
+
