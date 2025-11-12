@@ -27,6 +27,7 @@ const TripMap = ({ trip, height = '600px', centerOnLocation }: TripMapProps) => 
   const mapContainerRef = useRef<HTMLDivElement>(null)
   const markersRef = useRef<any[]>([])
   const polylinesRef = useRef<any[]>([])
+  const infoWindowsRef = useRef<Map<string, any>>(new Map()) // 存储每个标记点的信息窗口，key 为坐标字符串
   const [locations, setLocations] = useState<Array<{
     name: string
     address: string
@@ -480,11 +481,22 @@ const TripMap = ({ trip, height = '600px', centerOnLocation }: TripMapProps) => 
           mapInstanceRef.current.setCenter([lng, lat], true) // true 表示使用动画
           mapInstanceRef.current.setZoom(15) // 设置一个合适的缩放级别，可以清楚看到地点
 
-          // 如果找到标记点，可以触发点击事件或添加高亮效果
+          // 如果找到标记点，打开信息窗口
           if (targetMarker) {
-            // 可以添加一个短暂的动画效果，比如让标记点闪烁
-            console.log(`[TripMap] 找到对应的标记点，已高亮`)
-            // 可以在这里添加高亮效果，比如改变标记点的样式
+            console.log(`[TripMap] 找到对应的标记点，打开信息窗口`)
+            // 查找对应的信息窗口
+            const coordKey = `${lng.toFixed(6)},${lat.toFixed(6)}`
+            const infoWindowData = infoWindowsRef.current.get(coordKey)
+            if (infoWindowData && infoWindowData.infoWindow) {
+              // 延迟一点打开，确保地图移动完成
+              setTimeout(() => {
+                try {
+                  infoWindowData.infoWindow.open(mapInstanceRef.current, targetMarker.getPosition())
+                } catch (error: any) {
+                  console.error(`[TripMap] 打开信息窗口失败:`, error)
+                }
+              }, 300) // 等待地图移动动画完成
+            }
           }
         } catch (error: any) {
           console.error(`[TripMap] 移动地图中心失败:`, error)
