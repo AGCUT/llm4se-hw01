@@ -1,2 +1,1 @@
-export { default } from './ExpenseForm';
-
+export { default } from './ExpenseForm'

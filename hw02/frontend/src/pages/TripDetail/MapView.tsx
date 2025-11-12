@@ -10,6 +10,7 @@ interface MapViewProps {
 
 const MapView = ({ trip }: MapViewProps) => {
   const [selectedLocation, setSelectedLocation] = useState<any>(null)
+  const [centerOnLocation, setCenterOnLocation] = useState<{ lng: number; lat: number } | null>(null)
 
   // 提取所有地点
   const locations: Array<{
@@ -44,7 +45,7 @@ const MapView = ({ trip }: MapViewProps) => {
     <div className="map-view">
       {/* 地图容器 */}
       <div className="map-container">
-        <TripMap trip={trip} height="600px" />
+        <TripMap trip={trip} height="600px" centerOnLocation={centerOnLocation} />
       </div>
 
       {/* 地点列表 */}
@@ -61,7 +62,16 @@ const MapView = ({ trip }: MapViewProps) => {
               <div
                 key={index}
                 className={`location-card ${selectedLocation === location ? 'selected' : ''}`}
-                onClick={() => setSelectedLocation(location)}
+                onClick={() => {
+                  setSelectedLocation(location)
+                  // 如果地点有坐标，移动地图中心到该位置
+                  if (location.coordinates && location.coordinates.lng && location.coordinates.lat) {
+                    setCenterOnLocation({
+                      lng: location.coordinates.lng,
+                      lat: location.coordinates.lat
+                    })
+                  }
+                }}
               >
                 <div className="location-number">{location.day}-{location.activityIndex}</div>
                 <div className="location-info">

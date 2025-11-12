@@ -8,6 +8,7 @@ import './TripMap.module.css'
 interface TripMapProps {
   trip: Trip
   height?: string
+  centerOnLocation?: { lng: number; lat: number } | null // 要聚焦的坐标
 }
 
 // 验证坐标是否有效
@@ -22,7 +23,7 @@ const isValidCoordinates = (coords: { lng: number; lat: number } | undefined): b
   return isValidCoordinate(coords.lng) && isValidCoordinate(coords.lat)
 }
 
-const TripMap = ({ trip, height = '600px' }: TripMapProps) => {
+const TripMap = ({ trip, height = '600px', centerOnLocation }: TripMapProps) => {
   const mapContainerRef = useRef<HTMLDivElement>(null)
   const markersRef = useRef<any[]>([])
   const polylinesRef = useRef<any[]>([])
@@ -452,6 +453,47 @@ const TripMap = ({ trip, height = '600px' }: TripMapProps) => {
       updateMapMarkers(mapInstanceRef.current, amapInstanceRef.current, locations)
     }
   }, [locations])
+
+  // 当 centerOnLocation 变化时，移动地图中心到该位置并高亮标记点
+  useEffect(() => {
+    if (centerOnLocation && mapInstanceRef.current && amapInstanceRef.current) {
+      const { lng, lat } = centerOnLocation
+      
+      // 验证坐标有效性
+      if (isValidCoordinate(lng) && isValidCoordinate(lat)) {
+        console.log(`[TripMap] 移动地图中心到: [${lng}, ${lat}]`)
+        try {
+          // 找到对应的标记点并高亮
+          const targetMarker = markersRef.current.find((marker: any) => {
+            const position = marker.getPosition()
+            if (position && position.lng && position.lat) {
+              // 允许小的误差（坐标可能不完全一致）
+              const lngDiff = Math.abs(position.lng - lng)
+              const latDiff = Math.abs(position.lat - lat)
+              return lngDiff < 0.0001 && latDiff < 0.0001
+            }
+            return false
+          })
+
+          // 使用 setCenter 方法移动地图中心，并设置合适的缩放级别
+          // 使用动画效果，使移动更平滑
+          mapInstanceRef.current.setCenter([lng, lat], true) // true 表示使用动画
+          mapInstanceRef.current.setZoom(15) // 设置一个合适的缩放级别，可以清楚看到地点
+
+          // 如果找到标记点，可以触发点击事件或添加高亮效果
+          if (targetMarker) {
+            // 可以添加一个短暂的动画效果，比如让标记点闪烁
+            console.log(`[TripMap] 找到对应的标记点，已高亮`)
+            // 可以在这里添加高亮效果，比如改变标记点的样式
+          }
+        } catch (error: any) {
+          console.error(`[TripMap] 移动地图中心失败:`, error)
+        }
+      } else {
+        console.warn(`[TripMap] 无效的坐标，无法移动地图中心:`, centerOnLocation)
+      }
+    }
+  }, [centerOnLocation])
 
   // 更新地图标记点
   const updateMapMarkers = (mapInstance: any, AMapInstance: any, locationsToShow: typeof locations) => {

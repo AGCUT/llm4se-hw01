@@ -54,17 +54,21 @@
 #### ALIYUN_REGISTRY_USERNAME
 
 - **Name**: `ALIYUN_REGISTRY_USERNAME`
-- **Value**: 阿里云容器镜像服务用户名
+- **Value**: 阿里云 AccessKey ID（例如：`LTAI5tPSWhPjQEgbjRem3yad`）
+- **说明**：可以使用阿里云 AccessKey ID 作为用户名，也可以使用容器镜像服务创建的用户名
 
 #### ALIYUN_REGISTRY_PASSWORD
 
 - **Name**: `ALIYUN_REGISTRY_PASSWORD`
-- **Value**: 阿里云容器镜像服务密码
+- **Value**: 阿里云 AccessKey Secret（例如：`QdGFfa5kZvl1u5Q9noJmF5dkMi0mhv`）
+- **说明**：可以使用阿里云 AccessKey Secret 作为密码，也可以使用容器镜像服务创建的密码
+- **⚠️ 注意**：AccessKey Secret 只在创建时显示一次，请妥善保管
 
 #### ALIYUN_NAMESPACE
 
 - **Name**: `ALIYUN_NAMESPACE`
 - **Value**: 阿里云容器镜像服务命名空间（例如：`your-username` 或 `your-org`）
+- **说明**：在阿里云容器镜像服务控制台中查看或创建命名空间
 
 ### 3. 验证 Secrets
 
