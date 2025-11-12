@@ -10,6 +10,18 @@ interface TripMapProps {
   height?: string
 }
 
+// 验证坐标是否有效
+const isValidCoordinate = (value: any): boolean => {
+  const num = Number(value)
+  return !isNaN(num) && isFinite(num) && num !== null && num !== undefined
+}
+
+// 验证坐标对象是否有效
+const isValidCoordinates = (coords: { lng: number; lat: number } | undefined): boolean => {
+  if (!coords) return false
+  return isValidCoordinate(coords.lng) && isValidCoordinate(coords.lat)
+}
+
 const TripMap = ({ trip, height = '600px' }: TripMapProps) => {
   const mapContainerRef = useRef<HTMLDivElement>(null)
   const markersRef = useRef<any[]>([])
@@ -63,23 +75,26 @@ const TripMap = ({ trip, height = '600px' }: TripMapProps) => {
                 // 可能是 { lng, lat } 格式
                 if (typeof activity.location.coordinates === 'object') {
                   if (activity.location.coordinates.lng && activity.location.coordinates.lat) {
-                    coordinates = {
-                      lng: Number(activity.location.coordinates.lng),
-                      lat: Number(activity.location.coordinates.lat)
+                    const lng = Number(activity.location.coordinates.lng)
+                    const lat = Number(activity.location.coordinates.lat)
+                    if (isValidCoordinate(lng) && isValidCoordinate(lat)) {
+                      coordinates = { lng, lat }
                     }
                   } else if (activity.location.coordinates[0] && activity.location.coordinates[1]) {
                     // 可能是 [lng, lat] 数组格式
-                    coordinates = {
-                      lng: Number(activity.location.coordinates[0]),
-                      lat: Number(activity.location.coordinates[1])
+                    const lng = Number(activity.location.coordinates[0])
+                    const lat = Number(activity.location.coordinates[1])
+                    if (isValidCoordinate(lng) && isValidCoordinate(lat)) {
+                      coordinates = { lng, lat }
                     }
                   }
                 } else if (Array.isArray(activity.location.coordinates)) {
                   // 数组格式 [lng, lat]
                   if (activity.location.coordinates.length >= 2) {
-                    coordinates = {
-                      lng: Number(activity.location.coordinates[0]),
-                      lat: Number(activity.location.coordinates[1])
+                    const lng = Number(activity.location.coordinates[0])
+                    const lat = Number(activity.location.coordinates[1])
+                    if (isValidCoordinate(lng) && isValidCoordinate(lat)) {
+                      coordinates = { lng, lat }
                     }
                   }
                 }
@@ -87,13 +102,14 @@ const TripMap = ({ trip, height = '600px' }: TripMapProps) => {
               
               // 检查 lng 和 lat 是否直接在 location 下
               if (!coordinates && activity.location.lng && activity.location.lat) {
-                coordinates = {
-                  lng: Number(activity.location.lng),
-                  lat: Number(activity.location.lat)
+                const lng = Number(activity.location.lng)
+                const lat = Number(activity.location.lat)
+                if (isValidCoordinate(lng) && isValidCoordinate(lat)) {
+                  coordinates = { lng, lat }
                 }
               }
               
-              if (coordinates) {
+              if (coordinates && isValidCoordinates(coordinates)) {
                 console.log(`      ✅ 找到坐标:`, coordinates)
                 locations.push({
                   name: activity.name,
@@ -228,7 +244,7 @@ const TripMap = ({ trip, height = '600px' }: TripMapProps) => {
             coordinates = await geocode(loc.address)
             const geocodeDuration = Date.now() - geocodeStartTime
             
-            if (coordinates) {
+            if (coordinates && isValidCoordinates(coordinates)) {
               console.log(`[TripMap] ✅ 地理编码成功 (耗时 ${geocodeDuration}ms): ${loc.address} ->`, coordinates)
               geocodedLocations.push({
                 ...loc,
@@ -237,6 +253,9 @@ const TripMap = ({ trip, height = '600px' }: TripMapProps) => {
               })
               break // 成功，退出重试循环
             } else {
+              if (coordinates) {
+                console.warn(`[TripMap] ⚠️ 地理编码返回无效坐标: ${loc.address}`, coordinates)
+              }
               console.warn(`[TripMap] ⚠️ 地理编码失败 (耗时 ${geocodeDuration}ms): ${loc.address} (返回 null)`)
               retryCount++
               if (retryCount < maxRetries) {
@@ -340,9 +359,14 @@ const TripMap = ({ trip, height = '600px' }: TripMapProps) => {
       return [116.397428, 39.90923]
     }
 
-    // 计算所有地点的中心
-    const lngs = locations.map(loc => loc.coordinates?.lng).filter(Boolean) as number[]
-    const lats = locations.map(loc => loc.coordinates?.lat).filter(Boolean) as number[]
+    // 计算所有地点的中心（只使用有效坐标）
+    const validLocations = locations.filter(loc => isValidCoordinates(loc.coordinates))
+    const lngs = validLocations
+      .map(loc => loc.coordinates?.lng)
+      .filter((lng): lng is number => isValidCoordinate(lng))
+    const lats = validLocations
+      .map(loc => loc.coordinates?.lat)
+      .filter((lat): lat is number => isValidCoordinate(lat))
 
     if (lngs.length === 0 || lats.length === 0) {
       return [116.397428, 39.90923]
@@ -351,10 +375,15 @@ const TripMap = ({ trip, height = '600px' }: TripMapProps) => {
     const centerLng = lngs.reduce((sum, lng) => sum + lng, 0) / lngs.length
     const centerLat = lats.reduce((sum, lat) => sum + lat, 0) / lats.length
 
+    // 验证计算出的中心点是否有效
+    if (!isValidCoordinate(centerLng) || !isValidCoordinate(centerLat)) {
+      return [116.397428, 39.90923]
+    }
+
     return [centerLng, centerLat]
   }
 
-  const { map, AMap, loading, error, isConfigured } = useMap({
+  const { loading, error, isConfigured } = useMap({
     containerId: `trip-map-${trip.id}`,
     zoom: locations.length > 0 ? 12 : 10,
     center: calculateCenter(),
@@ -367,12 +396,39 @@ const TripMap = ({ trip, height = '600px' }: TripMapProps) => {
       mapInstanceRef.current = mapInstance
       amapInstanceRef.current = AMapInstance
 
+      // 等待地图完全渲染（确保容器有尺寸）
+      const waitForMapReady = () => {
+        return new Promise<void>((resolve) => {
+          const container = document.getElementById(`trip-map-${trip.id}`)
+          if (container) {
+            const containerWidth = container.offsetWidth || container.clientWidth
+            const containerHeight = container.offsetHeight || container.clientHeight
+            if (containerWidth > 0 && containerHeight > 0) {
+              console.log(`[TripMap] 地图容器已就绪，尺寸: ${containerWidth}x${containerHeight}`)
+              resolve()
+              return
+            }
+          }
+          // 如果容器还没有尺寸，等待一段时间后重试
+          console.log('[TripMap] 等待地图容器渲染...')
+          setTimeout(() => {
+            waitForMapReady().then(resolve)
+          }, 100)
+        })
+      }
+
+      // 等待地图完全渲染
+      await waitForMapReady()
+
       // 先显示已有的坐标
       const existingLocations = rawLocations.filter(loc => loc.coordinates)
       if (existingLocations.length > 0) {
         const existingLocationsClean = existingLocations.map(({ needGeocode, ...loc }) => loc)
         setLocations(existingLocationsClean)
-        updateMapMarkers(mapInstance, AMapInstance, existingLocationsClean)
+        // 使用 setTimeout 确保地图完全准备好
+        setTimeout(() => {
+          updateMapMarkers(mapInstance, AMapInstance, existingLocationsClean)
+        }, 100)
       }
 
       // 进行地理编码（如果有需要编码的地址）
@@ -404,7 +460,35 @@ const TripMap = ({ trip, height = '600px' }: TripMapProps) => {
       return
     }
 
+    // 检查地图容器是否有有效尺寸
+    const container = document.getElementById(`trip-map-${trip.id}`)
+    if (!container) {
+      console.warn('[TripMap] 地图容器不存在，延迟添加标记')
+      // 延迟重试
+      setTimeout(() => {
+        if (mapInstanceRef.current && amapInstanceRef.current) {
+          updateMapMarkers(mapInstanceRef.current, amapInstanceRef.current, locationsToShow)
+        }
+      }, 500)
+      return
+    }
+
+    const containerWidth = container.offsetWidth || container.clientWidth
+    const containerHeight = container.offsetHeight || container.clientHeight
+
+    if (containerWidth === 0 || containerHeight === 0) {
+      console.warn(`[TripMap] 地图容器尺寸无效 (${containerWidth}x${containerHeight})，延迟添加标记`)
+      // 延迟重试
+      setTimeout(() => {
+        if (mapInstanceRef.current && amapInstanceRef.current) {
+          updateMapMarkers(mapInstanceRef.current, amapInstanceRef.current, locationsToShow)
+        }
+      }, 500)
+      return
+    }
+
     console.log(`开始添加 ${locationsToShow.length} 个标记点...`)
+    console.log(`[TripMap] 地图容器尺寸: ${containerWidth}x${containerHeight}`)
 
     // 清除之前的标记和路线
     markersRef.current.forEach(marker => marker.remove())
@@ -413,38 +497,89 @@ const TripMap = ({ trip, height = '600px' }: TripMapProps) => {
     polylinesRef.current = []
 
     // 添加标记点
-    locationsToShow.forEach((location, index) => {
-      if (!location.coordinates) return
-
-      const marker = new AMapInstance.Marker({
-        position: [location.coordinates.lng, location.coordinates.lat],
-        title: location.name,
-        label: {
-          content: `${location.day}-${location.activityIndex}`,
-          offset: new AMapInstance.Pixel(0, -30),
-          direction: 'right'
+    locationsToShow.forEach((location) => {
+      try {
+        // 验证坐标有效性
+        if (!location.coordinates || !isValidCoordinates(location.coordinates)) {
+          console.warn(`[TripMap] 跳过无效坐标的地点: ${location.name}`, location.coordinates)
+          return
         }
-        // 使用默认图标，不传 icon 参数
-      })
 
-      // 添加信息窗口
-      const infoWindow = new AMapInstance.InfoWindow({
-        content: `
-          <div style="padding: 10px;">
-            <h4 style="margin: 0 0 5px 0;">${location.name}</h4>
-            <p style="margin: 0; color: #666; font-size: 12px;">${location.address}</p>
-            <p style="margin: 5px 0 0 0; color: #999; font-size: 11px;">第 ${location.day} 天 - 活动 ${location.activityIndex}</p>
-          </div>
-        `,
-        offset: new AMapInstance.Pixel(0, -30)
-      })
+        const { lng, lat } = location.coordinates
+        
+        // 再次验证坐标值（确保是数字且有效）
+        if (!isValidCoordinate(lng) || !isValidCoordinate(lat)) {
+          console.warn(`[TripMap] 坐标值无效: ${location.name}`, { lng, lat })
+          return
+        }
 
-      marker.on('click', () => {
-        infoWindow.open(mapInstance, marker.getPosition())
-      })
+        // 最终验证：确保坐标是数字类型
+        const finalLng = Number(lng)
+        const finalLat = Number(lat)
+        if (!isValidCoordinate(finalLng) || !isValidCoordinate(finalLat)) {
+          console.warn(`[TripMap] 坐标转换后无效: ${location.name}`, { finalLng, finalLat })
+          return
+        }
 
-      mapInstance.add(marker)
-      markersRef.current.push(marker)
+        // 创建 Pixel 对象前验证参数
+        let labelOffset
+        try {
+          labelOffset = new AMapInstance.Pixel(0, -30)
+        } catch (pixelError) {
+          console.error(`[TripMap] 创建 Pixel 对象失败:`, pixelError)
+          // 如果 Pixel 创建失败，不使用 label
+          labelOffset = undefined
+        }
+
+        const marker = new AMapInstance.Marker({
+          position: [finalLng, finalLat],
+          title: location.name,
+          ...(labelOffset && {
+            label: {
+              content: `${location.day}-${location.activityIndex}`,
+              offset: labelOffset,
+              direction: 'right'
+            }
+          })
+          // 使用默认图标，不传 icon 参数
+        })
+
+        // 添加信息窗口
+        let infoWindowOffset
+        try {
+          infoWindowOffset = new AMapInstance.Pixel(0, -30)
+        } catch (pixelError) {
+          console.error(`[TripMap] 创建 InfoWindow Pixel 对象失败:`, pixelError)
+          infoWindowOffset = undefined
+        }
+
+        const infoWindow = new AMapInstance.InfoWindow({
+          content: `
+            <div style="padding: 10px;">
+              <h4 style="margin: 0 0 5px 0;">${location.name}</h4>
+              <p style="margin: 0; color: #666; font-size: 12px;">${location.address}</p>
+              <p style="margin: 5px 0 0 0; color: #999; font-size: 11px;">第 ${location.day} 天 - 活动 ${location.activityIndex}</p>
+            </div>
+          `,
+          ...(infoWindowOffset && { offset: infoWindowOffset })
+        })
+
+        marker.on('click', () => {
+          infoWindow.open(mapInstance, marker.getPosition())
+        })
+
+        mapInstance.add(marker)
+        markersRef.current.push(marker)
+      } catch (error: any) {
+        console.error(`[TripMap] 添加标记点失败: ${location.name}`, error)
+        console.error(`[TripMap] 错误详情:`, {
+          location,
+          coordinates: location.coordinates,
+          errorMessage: error?.message,
+          errorStack: error?.stack
+        })
+        // 继续处理下一个地点，不中断整个流程
+      }
     })
 
     // 绘制路线（连接同一天的地点）
@@ -474,27 +609,77 @@ const TripMap = ({ trip, height = '600px' }: TripMapProps) => {
     Object.values(locationsByDay).forEach((dayLocations: any) => {
       if (dayLocations.length < 2) return
 
+      // 过滤并验证坐标有效性
       const path = dayLocations
-        .filter((loc: any) => loc.coordinates)
-        .map((loc: any) => [loc.coordinates.lng, loc.coordinates.lat])
+        .filter((loc: any) => loc.coordinates && isValidCoordinates(loc.coordinates))
+        .map((loc: any) => {
+          const { lng, lat } = loc.coordinates
+          // 再次验证坐标值
+          if (!isValidCoordinate(lng) || !isValidCoordinate(lat)) {
+            console.warn(`[TripMap] 路线绘制跳过无效坐标: ${loc.name}`, { lng, lat })
+            return null
+          }
+          return [lng, lat]
+        })
+        .filter((point: any) => {
+          // 严格验证每个点
+          if (!point || !Array.isArray(point) || point.length !== 2) {
+            return false
+          }
+          const [lng, lat] = point
+          return isValidCoordinate(lng) && isValidCoordinate(lat)
+        })
 
-      if (path.length < 2) return
+      if (path.length < 2) {
+        console.warn(`[TripMap] 路线绘制跳过：有效点数量不足 (${path.length} < 2)`)
+        return
+      }
 
-      const polyline = new AMapInstance.Polyline({
-        path,
-        isOutline: true,
-        outlineColor: '#ffeeff',
-        borderWeight: 3,
-        strokeColor: '#3366FF',
-        strokeOpacity: 0.6,
-        strokeWeight: 3,
-        lineJoin: 'round',
-        lineCap: 'round',
-        zIndex: 50
+      // 最终验证：确保 path 中所有点都有效
+      const validPath = path.filter((point: any) => {
+        const [lng, lat] = point
+        const isValid = isValidCoordinate(lng) && isValidCoordinate(lat)
+        if (!isValid) {
+          console.warn(`[TripMap] 路线绘制过滤无效点:`, point)
+        }
+        return isValid
       })
 
-      mapInstance.add(polyline)
-      polylinesRef.current.push(polyline)
+      if (validPath.length < 2) {
+        console.warn(`[TripMap] 路线绘制跳过：验证后有效点数量不足 (${validPath.length} < 2)`)
+        return
+      }
+
+      console.log(`[TripMap] 绘制路线，共 ${validPath.length} 个有效点`)
+
+      try {
+        const polyline = new AMapInstance.Polyline({
+          path: validPath,
+          isOutline: true,
+          outlineColor: '#ffeeff',
+          borderWeight: 3,
+          strokeColor: '#3366FF',
+          strokeOpacity: 0.6,
+          strokeWeight: 3,
+          lineJoin: 'round',
+          lineCap: 'round',
+          zIndex: 50
+        })
+
+        mapInstance.add(polyline)
+        polylinesRef.current.push(polyline)
+      } catch (error: any) {
+        console.error(`[TripMap] 绘制路线失败:`, error)
+        console.error(`[TripMap] 路线路径:`, validPath)
+        console.error(`[TripMap] 错误详情:`, {
+          errorMessage: error?.message,
+          errorStack: error?.stack,
+          pathLength: validPath.length,
+          firstPoint: validPath[0],
+          lastPoint: validPath[validPath.length - 1]
+        })
+        // 不抛出错误，继续处理其他路线
+      }
     })
   }
 
