@@ -543,7 +543,7 @@
 
 .route-loading {
   display: flex;
-  align-items: center;
+  flex-direction: column;
   gap: 8px;
   color: #667eea;
   font-size: 14px;
@@ -552,6 +552,16 @@
 
 .route-loading span {
   animation: pulse 1.5s ease-in-out infinite;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.route-loading p {
+  font-size: 12px;
+  color: #999;
+  margin: 0;
+  padding: 0;
 }
 
 @keyframes pulse {
@@ -598,8 +608,226 @@
   color: #0284c7;
 }
 
-.route-tolls {
+.route-tolls,
+.route-cost {
   color: #dc2626;
+}
+
+.route-type-selector {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.route-type-btn {
+  background: #f8f9fa;
+  color: #475569;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  padding: 8px 16px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  flex: 1;
+  min-width: 80px;
+}
+
+.route-type-btn:hover {
+  background: #e2e8f0;
+  border-color: #cbd5e0;
+  transform: translateY(-1px);
+}
+
+.route-type-btn:active {
+  transform: translateY(0);
+}
+
+.route-type-tabs {
+  display: flex;
+  gap: 4px;
+  border-bottom: 2px solid #e2e8f0;
+  margin-bottom: 12px;
+}
+
+.route-type-tab {
+  background: transparent;
+  color: #64748b;
+  border: none;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  padding: 8px 16px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  margin-bottom: -2px;
+}
+
+.route-type-tab:hover {
+  color: #475569;
+  background: #f8f9fa;
+}
+
+.route-type-tab.active {
+  color: #667eea;
+  border-bottom-color: #667eea;
+  background: transparent;
+}
+
+.route-expand-btn {
+  align-self: flex-start;
+  background: transparent;
+  color: #667eea;
+  border: 1px solid #667eea;
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  margin-top: 8px;
+}
+
+.route-expand-btn:hover {
+  background: #667eea;
+  color: white;
+}
+
+.route-expand-btn:active {
+  transform: scale(0.98);
+}
+
+.route-details {
+  margin-top: 12px;
+  padding: 12px;
+  background: #f8f9fa;
+  border-radius: 6px;
+  border: 1px solid #e2e8f0;
+}
+
+.route-details h4 {
+  margin: 0 0 12px 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.route-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.route-step {
+  padding: 8px;
+  background: white;
+  border-radius: 4px;
+  border: 1px solid #e2e8f0;
+}
+
+.step-instruction {
+  font-size: 14px;
+  color: #1e293b;
+  margin-bottom: 4px;
+  font-weight: 500;
+}
+
+.step-road {
+  font-size: 12px;
+  color: #64748b;
+  margin-bottom: 4px;
+}
+
+.step-info {
+  display: flex;
+  gap: 12px;
+  font-size: 12px;
+  color: #64748b;
+}
+
+.route-transit {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.transit-summary {
+  padding: 8px;
+  background: white;
+  border-radius: 4px;
+  border: 1px solid #e2e8f0;
+  font-size: 14px;
+  color: #1e293b;
+  font-weight: 500;
+}
+
+.transit-segment {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  background: white;
+  border-radius: 4px;
+  border: 1px solid #e2e8f0;
+}
+
+.transit-walking {
+  padding: 8px;
+  background: #f0f9ff;
+  border-radius: 4px;
+  border-left: 3px solid #0284c7;
+}
+
+.transit-walking strong {
+  display: block;
+  margin-bottom: 4px;
+  color: #0284c7;
+  font-size: 14px;
+}
+
+.transit-step {
+  font-size: 12px;
+  color: #475569;
+  margin-left: 12px;
+  margin-top: 4px;
+}
+
+.transit-busline {
+  padding: 8px;
+  background: #fef3c7;
+  border-radius: 4px;
+  border-left: 3px solid #f59e0b;
+}
+
+.busline-header {
+  margin-bottom: 8px;
+  font-size: 14px;
+  color: #92400e;
+}
+
+.busline-header strong {
+  display: block;
+  margin-bottom: 4px;
+}
+
+.busline-info {
+  font-size: 12px;
+  color: #78350f;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-left: 12px;
+}
+
+.transit-entrance,
+.transit-exit {
+  padding: 6px 8px;
+  background: #f3e8ff;
+  border-radius: 4px;
+  border-left: 3px solid #9333ea;
+  font-size: 12px;
+  color: #6b21a8;
 }
 
 .route-refresh-btn {
@@ -613,6 +841,7 @@
   font-weight: 500;
   cursor: pointer;
   transition: all 0.2s;
+  margin-top: 8px;
 }
 
 .route-refresh-btn:hover {

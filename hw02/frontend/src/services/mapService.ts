@@ -247,10 +247,64 @@ export const reverseGeocode = async (lng: number, lat: number): Promise<string |
 }
 
 /**
- * 路线规划 - 驾车路线（使用 Web 服务 API）
+ * 路线规划 - 基础接口
  * 文档：https://lbs.amap.com/api/webservice/guide/api/direction
  */
-export interface RouteResult {
+export type RouteType = 'driving' | 'walking' | 'transit'
+
+// 路线步骤（通用）
+export interface RouteStep {
+  instruction: string // 步骤说明
+  road: string // 道路名称
+  distance: number // 距离（米）
+  duration: number // 时间（秒）
+  polyline: string // 路线坐标点
+  action?: string // 动作（如：左转、右转、直行等）
+  assist_action?: string // 辅助动作
+}
+
+// 公共交通换乘信息
+export interface TransitSegment {
+  walking?: {
+    distance: number
+    duration: number
+    steps: RouteStep[]
+  }
+  bus?: {
+    buslines: Array<{
+      name: string // 公交线路名称
+      type: string // 公交类型（地铁、公交等）
+      departure_stop: {
+        name: string
+        location: string
+      }
+      arrival_stop: {
+        name: string
+        location: string
+      }
+      departure_time: string
+      arrival_time: string
+      via_stops: Array<{
+        name: string
+        location: string
+      }>
+      distance: number
+      duration: number
+    }>
+  }
+  entrance?: {
+    name: string
+    location: string
+  }
+  exit?: {
+    name: string
+    location: string
+  }
+}
+
+// 驾车路线结果
+export interface DrivingRouteResult {
+  type: 'driving'
   distance: number // 距离（米）
   duration: number // 时间（秒）
   tolls: number // 过路费（元）
@@ -260,27 +314,58 @@ export interface RouteResult {
     duration: number
     tolls: number
     tollDistance: number
-    steps: Array<{
-      instruction: string
-      road: string
-      distance: number
-      duration: number
-      polyline: string
-    }>
+    steps: RouteStep[]
   }>
 }
 
-export const planRoute = async (
+// 步行路线结果
+export interface WalkingRouteResult {
+  type: 'walking'
+  distance: number // 距离（米）
+  duration: number // 时间（秒）
+  paths: Array<{
+    distance: number
+    duration: number
+    steps: RouteStep[]
+  }>
+}
+
+// 公共交通路线结果
+export interface TransitRouteResult {
+  type: 'transit'
+  distance: number // 距离（米）
+  duration: number // 时间（秒）
+  cost: number // 费用（元）
+  nightflag: boolean // 是否夜班车
+  walking_distance: number // 总步行距离（米）
+  transits: Array<{
+    cost: number // 费用（元）
+    duration: number // 时间（秒）
+    nightflag: boolean // 是否夜班车
+    walking_distance: number // 步行距离（米）
+    distance: number // 总距离（米）
+    segments: TransitSegment[] // 换乘段
+  }>
+}
+
+// 路线结果（联合类型）
+export type RouteResult = DrivingRouteResult | WalkingRouteResult | TransitRouteResult
+
+/**
+ * 路线规划 - 驾车路线（使用 Web 服务 API）
+ * 文档：https://lbs.amap.com/api/webservice/guide/api/direction#driving
+ */
+export const planDrivingRoute = async (
   start: { lng: number; lat: number } | string,
   end: { lng: number; lat: number } | string
-): Promise<RouteResult | null> => {
+): Promise<DrivingRouteResult | null> => {
   try {
-    console.log(`[planRoute] 开始路径规划`)
+    console.log(`[planDrivingRoute] 开始驾车路线规划`)
     
     // 获取 API Key
     const apiKey = import.meta.env.VITE_AMAP_KEY || AMAP_CONFIG.key
     if (!apiKey) {
-      console.error('[planRoute] ⚠️ 高德地图 API Key 未配置')
+      console.error('[planDrivingRoute] ⚠️ 高德地图 API Key 未配置')
       return null
     }
     
@@ -300,10 +385,10 @@ export const planRoute = async (
       endStr = `${end.lng},${end.lat}`
     }
     
-    console.log(`[planRoute] 起点: ${startStr}, 终点: ${endStr}`)
+    console.log(`[planDrivingRoute] 起点: ${startStr}, 终点: ${endStr}`)
     
-    // 使用高德地图 Web 服务 API 进行路径规划
-    // 文档：https://lbs.amap.com/api/webservice/guide/api/direction
+    // 使用高德地图 Web 服务 API 进行驾车路线规划
+    // 文档：https://lbs.amap.com/api/webservice/guide/api/direction#driving
     const url = `https://restapi.amap.com/v3/direction/driving`
     const params = new URLSearchParams({
       key: apiKey,
@@ -314,10 +399,10 @@ export const planRoute = async (
     })
 
     const fullUrl = `${url}?${params.toString()}`
-    console.log(`[planRoute] 调用 Web 服务 API: ${fullUrl}`)
+    console.log(`[planDrivingRoute] 调用 Web 服务 API: ${fullUrl}`)
 
     try {
-      console.log(`[planRoute] 开始发送 fetch 请求...`)
+      console.log(`[planDrivingRoute] 开始发送 fetch 请求...`)
       const fetchStartTime = Date.now()
       const response = await fetch(fullUrl, {
         method: 'GET',
@@ -326,69 +411,467 @@ export const planRoute = async (
         }
       })
       const fetchDuration = Date.now() - fetchStartTime
-      console.log(`[planRoute] fetch 请求完成，耗时: ${fetchDuration}ms`)
-      console.log(`[planRoute] 响应状态: ${response.status} ${response.statusText}`)
+      console.log(`[planDrivingRoute] fetch 请求完成，耗时: ${fetchDuration}ms`)
+      console.log(`[planDrivingRoute] 响应状态: ${response.status} ${response.statusText}`)
       
       if (!response.ok) {
-        console.error(`[planRoute] ⚠️ HTTP 错误: ${response.status} ${response.statusText}`)
+        console.error(`[planDrivingRoute] ⚠️ HTTP 错误: ${response.status} ${response.statusText}`)
         const errorText = await response.text()
-        console.error(`[planRoute] 错误内容:`, errorText)
+        console.error(`[planDrivingRoute] 错误内容:`, errorText)
         return null
       }
 
-      console.log(`[planRoute] 开始解析响应 JSON...`)
+      console.log(`[planDrivingRoute] 开始解析响应 JSON...`)
       const data = await response.json()
-      console.log(`[planRoute] 响应数据:`, data)
-      console.log(`[planRoute] 响应数据 status:`, data.status)
-      console.log(`[planRoute] 响应数据 info:`, data.info)
+      console.log(`[planDrivingRoute] 响应数据:`, data)
+      console.log(`[planDrivingRoute] 响应数据 status:`, data.status)
+      console.log(`[planDrivingRoute] 响应数据 info:`, data.info)
 
       if (data.status === '1' && data.route && data.route.paths && data.route.paths.length > 0) {
         const path = data.route.paths[0] // 使用第一条路径
-        const route: RouteResult = {
-          distance: path.distance || 0,
-          duration: path.duration || 0,
-          tolls: path.tolls || 0,
-          tollDistance: path.tollDistance || 0,
+        const route: DrivingRouteResult = {
+          type: 'driving',
+          distance: Number(path.distance) || 0,
+          duration: Number(path.duration) || 0,
+          tolls: Number(path.tolls) || 0,
+          tollDistance: Number(path.tollDistance) || 0,
           paths: data.route.paths.map((p: any) => ({
-            distance: p.distance || 0,
-            duration: p.duration || 0,
-            tolls: p.tolls || 0,
-            tollDistance: p.tollDistance || 0,
+            distance: Number(p.distance) || 0,
+            duration: Number(p.duration) || 0,
+            tolls: Number(p.tolls) || 0,
+            tollDistance: Number(p.tollDistance) || 0,
             steps: p.steps?.map((step: any) => ({
               instruction: step.instruction || '',
               road: step.road || '',
-              distance: step.distance || 0,
-              duration: step.duration || 0,
-              polyline: step.polyline || ''
+              distance: Number(step.distance) || 0,
+              duration: Number(step.duration) || 0,
+              polyline: step.polyline || '',
+              action: step.action || '',
+              assist_action: step.assist_action || ''
             })) || []
           }))
         }
         
-        console.log(`[planRoute] ✅ 路径规划成功:`, {
+        console.log(`[planDrivingRoute] ✅ 驾车路线规划成功:`, {
           distance: route.distance,
           duration: route.duration,
           tolls: route.tolls
         })
         return route
       } else {
-        console.warn(`[planRoute] ⚠️ 路径规划失败:`, {
+        // 检查是否是限流错误
+        if (data.status === '0' && data.info) {
+          // 检查各种限流错误码
+          const isRateLimitError = data.info.includes('CUQPS_HAS_EXCEEDED_THE_LIMIT') ||
+                                  data.info.includes('CUQPS') ||
+                                  data.info.includes('EXCEEDED') ||
+                                  data.info.includes('限流') ||
+                                  data.info.includes('QPS')
+          
+          if (isRateLimitError) {
+            console.error(`[planDrivingRoute] ❌ 驾车路线规划限流错误:`, {
+              status: data.status,
+              info: data.info
+            })
+            // 抛出限流错误，让调用者可以重试
+            throw new Error(`驾车路线规划限流: ${data.info}`)
+          }
+        }
+        
+        console.warn(`[planDrivingRoute] ⚠️ 驾车路线规划失败:`, {
           status: data.status,
           info: data.info
         })
         return null
       }
     } catch (fetchError: any) {
-      console.error(`[planRoute] ❌ 网络请求异常:`, fetchError)
-      console.error(`[planRoute] 错误类型:`, fetchError?.constructor?.name)
-      console.error(`[planRoute] 错误消息:`, fetchError?.message)
-      console.error(`[planRoute] 错误堆栈:`, fetchError?.stack)
+      console.error(`[planDrivingRoute] ❌ 网络请求异常:`, fetchError)
+      console.error(`[planDrivingRoute] 错误类型:`, fetchError?.constructor?.name)
+      console.error(`[planDrivingRoute] 错误消息:`, fetchError?.message)
+      console.error(`[planDrivingRoute] 错误堆栈:`, fetchError?.stack)
+      // 如果是限流错误，重新抛出；否则返回 null
+      if (fetchError?.message?.includes('限流') || 
+          fetchError?.message?.includes('CUQPS_HAS_EXCEEDED_THE_LIMIT') ||
+          fetchError?.message?.includes('EXCEEDED')) {
+        throw fetchError
+      }
       return null
     }
   } catch (error: any) {
-    console.error(`[planRoute] ❌ 路径规划错误:`, error)
+    console.error(`[planDrivingRoute] ❌ 驾车路线规划错误:`, error)
+    // 如果是限流错误，重新抛出；否则返回 null
+    if (error?.message?.includes('限流') || 
+        error?.message?.includes('CUQPS_HAS_EXCEEDED_THE_LIMIT') ||
+        error?.message?.includes('EXCEEDED')) {
+      throw error
+    }
     return null
   }
 }
+
+/**
+ * 路线规划 - 步行路线（使用 Web 服务 API）
+ * 文档：https://lbs.amap.com/api/webservice/guide/api/direction#walking
+ */
+export const planWalkingRoute = async (
+  start: { lng: number; lat: number } | string,
+  end: { lng: number; lat: number } | string
+): Promise<WalkingRouteResult | null> => {
+  try {
+    console.log(`[planWalkingRoute] 开始步行路线规划`)
+    
+    // 获取 API Key
+    const apiKey = import.meta.env.VITE_AMAP_KEY || AMAP_CONFIG.key
+    if (!apiKey) {
+      console.error('[planWalkingRoute] ⚠️ 高德地图 API Key 未配置')
+      return null
+    }
+    
+    // 处理起点和终点（可能是坐标对象或地址字符串）
+    let startStr: string
+    let endStr: string
+    
+    if (typeof start === 'string') {
+      startStr = start
+    } else {
+      startStr = `${start.lng},${start.lat}`
+    }
+    
+    if (typeof end === 'string') {
+      endStr = end
+    } else {
+      endStr = `${end.lng},${end.lat}`
+    }
+    
+    console.log(`[planWalkingRoute] 起点: ${startStr}, 终点: ${endStr}`)
+    
+    // 使用高德地图 Web 服务 API 进行步行路线规划
+    // 文档：https://lbs.amap.com/api/webservice/guide/api/direction#walking
+    const url = `https://restapi.amap.com/v3/direction/walking`
+    const params = new URLSearchParams({
+      key: apiKey,
+      origin: startStr,
+      destination: endStr,
+      extensions: 'all', // 返回详细信息
+      output: 'JSON'
+    })
+
+    const fullUrl = `${url}?${params.toString()}`
+    console.log(`[planWalkingRoute] 调用 Web 服务 API: ${fullUrl}`)
+
+    try {
+      console.log(`[planWalkingRoute] 开始发送 fetch 请求...`)
+      const fetchStartTime = Date.now()
+      const response = await fetch(fullUrl, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      })
+      const fetchDuration = Date.now() - fetchStartTime
+      console.log(`[planWalkingRoute] fetch 请求完成，耗时: ${fetchDuration}ms`)
+      console.log(`[planWalkingRoute] 响应状态: ${response.status} ${response.statusText}`)
+      
+      if (!response.ok) {
+        console.error(`[planWalkingRoute] ⚠️ HTTP 错误: ${response.status} ${response.statusText}`)
+        const errorText = await response.text()
+        console.error(`[planWalkingRoute] 错误内容:`, errorText)
+        return null
+      }
+
+      console.log(`[planWalkingRoute] 开始解析响应 JSON...`)
+      const data = await response.json()
+      console.log(`[planWalkingRoute] 响应数据:`, data)
+      console.log(`[planWalkingRoute] 响应数据 status:`, data.status)
+      console.log(`[planWalkingRoute] 响应数据 info:`, data.info)
+
+      if (data.status === '1' && data.route && data.route.paths && data.route.paths.length > 0) {
+        const path = data.route.paths[0] // 使用第一条路径
+        const route: WalkingRouteResult = {
+          type: 'walking',
+          distance: Number(path.distance) || 0,
+          duration: Number(path.duration) || 0,
+          paths: data.route.paths.map((p: any) => ({
+            distance: Number(p.distance) || 0,
+            duration: Number(p.duration) || 0,
+            steps: p.steps?.map((step: any) => ({
+              instruction: step.instruction || '',
+              road: step.road || '',
+              distance: Number(step.distance) || 0,
+              duration: Number(step.duration) || 0,
+              polyline: step.polyline || '',
+              action: step.action || '',
+              assist_action: step.assist_action || ''
+            })) || []
+          }))
+        }
+        
+        console.log(`[planWalkingRoute] ✅ 步行路线规划成功:`, {
+          distance: route.distance,
+          duration: route.duration
+        })
+        return route
+      } else {
+        // 检查是否是限流错误
+        if (data.status === '0' && data.info) {
+          const isRateLimitError = data.info.includes('CUQPS_HAS_EXCEEDED_THE_LIMIT') ||
+                                  data.info.includes('CUQPS') ||
+                                  data.info.includes('EXCEEDED') ||
+                                  data.info.includes('限流') ||
+                                  data.info.includes('QPS')
+          
+          if (isRateLimitError) {
+            console.error(`[planWalkingRoute] ❌ 步行路线规划限流错误:`, {
+              status: data.status,
+              info: data.info
+            })
+            throw new Error(`步行路线规划限流: ${data.info}`)
+          }
+        }
+        
+        console.warn(`[planWalkingRoute] ⚠️ 步行路线规划失败:`, {
+          status: data.status,
+          info: data.info
+        })
+        return null
+      }
+    } catch (fetchError: any) {
+      console.error(`[planWalkingRoute] ❌ 网络请求异常:`, fetchError)
+      if (fetchError?.message?.includes('限流') || 
+          fetchError?.message?.includes('CUQPS_HAS_EXCEEDED_THE_LIMIT') ||
+          fetchError?.message?.includes('EXCEEDED')) {
+        throw fetchError
+      }
+      return null
+    }
+  } catch (error: any) {
+    console.error(`[planWalkingRoute] ❌ 步行路线规划错误:`, error)
+    if (error?.message?.includes('限流') || 
+        error?.message?.includes('CUQPS_HAS_EXCEEDED_THE_LIMIT') ||
+        error?.message?.includes('EXCEEDED')) {
+      throw error
+    }
+    return null
+  }
+}
+
+/**
+ * 路线规划 - 公共交通路线（使用 Web 服务 API）
+ * 文档：https://lbs.amap.com/api/webservice/guide/api/direction#transit
+ */
+export const planTransitRoute = async (
+  start: { lng: number; lat: number } | string,
+  end: { lng: number; lat: number } | string,
+  city?: string // 城市代码或名称（可选，建议提供以提高准确性）
+): Promise<TransitRouteResult | null> => {
+  try {
+    console.log(`[planTransitRoute] 开始公共交通路线规划`)
+    
+    // 获取 API Key
+    const apiKey = import.meta.env.VITE_AMAP_KEY || AMAP_CONFIG.key
+    if (!apiKey) {
+      console.error('[planTransitRoute] ⚠️ 高德地图 API Key 未配置')
+      return null
+    }
+    
+    // 处理起点和终点（可能是坐标对象或地址字符串）
+    let startStr: string
+    let endStr: string
+    
+    if (typeof start === 'string') {
+      startStr = start
+    } else {
+      startStr = `${start.lng},${start.lat}`
+    }
+    
+    if (typeof end === 'string') {
+      endStr = end
+    } else {
+      endStr = `${end.lng},${end.lat}`
+    }
+    
+    console.log(`[planTransitRoute] 起点: ${startStr}, 终点: ${endStr}, 城市: ${city || '未指定'}`)
+    
+    // 使用高德地图 Web 服务 API 进行公共交通路线规划
+    // 文档：https://lbs.amap.com/api/webservice/guide/api/direction#transit
+    const url = `https://restapi.amap.com/v3/direction/transit/integrated`
+    const params = new URLSearchParams({
+      key: apiKey,
+      origin: startStr,
+      destination: endStr,
+      city: city || '全国', // 默认全国，建议提供具体城市
+      cityd: city || '', // 目的地城市
+      extensions: 'all', // 返回详细信息
+      output: 'JSON',
+      strategy: '0' // 0: 最快捷模式, 1: 最经济模式, 2: 最少换乘, 3: 最少步行, 5: 不乘地铁
+    })
+
+    const fullUrl = `${url}?${params.toString()}`
+    console.log(`[planTransitRoute] 调用 Web 服务 API: ${fullUrl}`)
+
+    try {
+      console.log(`[planTransitRoute] 开始发送 fetch 请求...`)
+      const fetchStartTime = Date.now()
+      const response = await fetch(fullUrl, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      })
+      const fetchDuration = Date.now() - fetchStartTime
+      console.log(`[planTransitRoute] fetch 请求完成，耗时: ${fetchDuration}ms`)
+      console.log(`[planTransitRoute] 响应状态: ${response.status} ${response.statusText}`)
+      
+      if (!response.ok) {
+        console.error(`[planTransitRoute] ⚠️ HTTP 错误: ${response.status} ${response.statusText}`)
+        const errorText = await response.text()
+        console.error(`[planTransitRoute] 错误内容:`, errorText)
+        return null
+      }
+
+      console.log(`[planTransitRoute] 开始解析响应 JSON...`)
+      const data = await response.json()
+      console.log(`[planTransitRoute] 响应数据:`, data)
+      console.log(`[planTransitRoute] 响应数据 status:`, data.status)
+      console.log(`[planTransitRoute] 响应数据 info:`, data.info)
+
+      if (data.status === '1' && data.route && data.route.transits && data.route.transits.length > 0) {
+        const transit = data.route.transits[0] // 使用第一条路线
+        const route: TransitRouteResult = {
+          type: 'transit',
+          distance: Number(transit.distance) || 0,
+          duration: Number(transit.duration) || 0,
+          cost: Number(transit.cost) || 0,
+          nightflag: transit.nightflag || false,
+          walking_distance: Number(transit.walking_distance) || 0,
+          transits: data.route.transits.map((t: any) => ({
+            cost: Number(t.cost) || 0,
+            duration: Number(t.duration) || 0,
+            nightflag: t.nightflag || false,
+            walking_distance: Number(t.walking_distance) || 0,
+            distance: Number(t.distance) || 0,
+            segments: t.segments?.map((segment: any) => {
+              const transitSegment: TransitSegment = {}
+              
+              // 步行段
+              if (segment.walking) {
+                transitSegment.walking = {
+                  distance: Number(segment.walking.distance) || 0,
+                  duration: Number(segment.walking.duration) || 0,
+                  steps: segment.walking.steps?.map((step: any) => ({
+                    instruction: step.instruction || '',
+                    road: step.road || '',
+                    distance: Number(step.distance) || 0,
+                    duration: Number(step.duration) || 0,
+                    polyline: step.polyline || '',
+                    action: step.action || '',
+                    assist_action: step.assist_action || ''
+                  })) || []
+                }
+              }
+              
+              // 公交段
+              if (segment.bus && segment.bus.buslines) {
+                transitSegment.bus = {
+                  buslines: segment.bus.buslines.map((busline: any) => ({
+                    name: busline.name || '',
+                    type: busline.type || '',
+                    departure_stop: {
+                      name: busline.departure_stop?.name || '',
+                      location: busline.departure_stop?.location || ''
+                    },
+                    arrival_stop: {
+                      name: busline.arrival_stop?.name || '',
+                      location: busline.arrival_stop?.location || ''
+                    },
+                    departure_time: busline.departure_time || '',
+                    arrival_time: busline.arrival_time || '',
+                    via_stops: busline.via_stops?.map((stop: any) => ({
+                      name: stop.name || '',
+                      location: stop.location || ''
+                    })) || [],
+                    distance: Number(busline.distance) || 0,
+                    duration: Number(busline.duration) || 0
+                  }))
+                }
+              }
+              
+              // 地铁入口/出口
+              if (segment.entrance) {
+                transitSegment.entrance = {
+                  name: segment.entrance.name || '',
+                  location: segment.entrance.location || ''
+                }
+              }
+              
+              if (segment.exit) {
+                transitSegment.exit = {
+                  name: segment.exit.name || '',
+                  location: segment.exit.location || ''
+                }
+              }
+              
+              return transitSegment
+            }) || []
+          }))
+        }
+        
+        console.log(`[planTransitRoute] ✅ 公共交通路线规划成功:`, {
+          distance: route.distance,
+          duration: route.duration,
+          cost: route.cost,
+          walking_distance: route.walking_distance
+        })
+        return route
+      } else {
+        // 检查是否是限流错误
+        if (data.status === '0' && data.info) {
+          const isRateLimitError = data.info.includes('CUQPS_HAS_EXCEEDED_THE_LIMIT') ||
+                                  data.info.includes('CUQPS') ||
+                                  data.info.includes('EXCEEDED') ||
+                                  data.info.includes('限流') ||
+                                  data.info.includes('QPS')
+          
+          if (isRateLimitError) {
+            console.error(`[planTransitRoute] ❌ 公共交通路线规划限流错误:`, {
+              status: data.status,
+              info: data.info
+            })
+            throw new Error(`公共交通路线规划限流: ${data.info}`)
+          }
+        }
+        
+        console.warn(`[planTransitRoute] ⚠️ 公共交通路线规划失败:`, {
+          status: data.status,
+          info: data.info
+        })
+        return null
+      }
+    } catch (fetchError: any) {
+      console.error(`[planTransitRoute] ❌ 网络请求异常:`, fetchError)
+      if (fetchError?.message?.includes('限流') || 
+          fetchError?.message?.includes('CUQPS_HAS_EXCEEDED_THE_LIMIT') ||
+          fetchError?.message?.includes('EXCEEDED')) {
+        throw fetchError
+      }
+      return null
+    }
+  } catch (error: any) {
+    console.error(`[planTransitRoute] ❌ 公共交通路线规划错误:`, error)
+    if (error?.message?.includes('限流') || 
+        error?.message?.includes('CUQPS_HAS_EXCEEDED_THE_LIMIT') ||
+        error?.message?.includes('EXCEEDED')) {
+      throw error
+    }
+    return null
+  }
+}
+
+/**
+ * 路线规划 - 通用接口（兼容旧代码）
+ * @deprecated 请使用 planDrivingRoute, planWalkingRoute, planTransitRoute
+ */
+export const planRoute = planDrivingRoute
 
 /**
  * 检查高德地图是否已配置
