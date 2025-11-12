@@ -1,26 +1,68 @@
 // Home页面
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useAuth } from '@/hooks/useAuth'
+import { useAuthStore } from '@/store/authStore'
 import { isAIConfigured } from '@/api/ai.api'
 import AIConfigModal from '@/components/common/AIConfigModal'
 import './Home.module.css'
 
 const Home = () => {
   const navigate = useNavigate()
-  const { isAuthenticated, user, profile, loading } = useAuth()
+  // 直接使用 authStore，避免重复获取认证状态
+  const { user, profile, loading } = useAuthStore()
+  const isAuthenticated = !!user
   const [showAIConfig, setShowAIConfig] = useState(false)
+  const [showContent, setShowContent] = useState(false)
   const aiConfigured = isAIConfigured()
 
-  if (loading) {
+  // 添加超时机制，避免一直显示加载中
+  useEffect(() => {
+    // 如果已经有用户信息，立即显示内容
+    if (user) {
+      setShowContent(true)
+      return
+    }
+
+    // 如果 loading 完成，立即显示内容
+    if (!loading) {
+      setShowContent(true)
+      return
+    }
+
+    // 否则，等待最多 1 秒后显示内容
+    const timer = setTimeout(() => {
+      setShowContent(true)
+    }, 1000) // 减少到 1 秒，因为登录成功后应该有用户信息
+
+    return () => clearTimeout(timer)
+  }, [loading, user])
+
+  // 如果 loading 完成或者超时，显示内容
+  if (loading && !showContent && !user) {
     return (
       <div style={{ 
         display: 'flex', 
+        flexDirection: 'column',
         justifyContent: 'center', 
         alignItems: 'center', 
-        height: '80vh' 
+        height: '80vh',
+        gap: '20px'
       }}>
-        <div>加载中...</div>
+        <div style={{
+          width: '50px',
+          height: '50px',
+          border: '5px solid #e2e8f0',
+          borderTop: '5px solid #667eea',
+          borderRadius: '50%',
+          animation: 'spin 1s linear infinite'
+        }} />
+        <div>正在加载...</div>
+        <style>{`
+          @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+          }
+        `}</style>
       </div>
     )
   }

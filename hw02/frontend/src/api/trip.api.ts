@@ -5,9 +5,15 @@ import type { TripPlan } from './ai.api'
 
 // 获取用户所有行程
 export const getTrips = async () => {
-  const user = await getCurrentUser()
+  // 添加超时保护
+  const userPromise = getCurrentUser()
+  const timeoutPromise = new Promise((resolve) => 
+    setTimeout(() => resolve(null), 5000) // 5秒超时
+  )
+  const user = await Promise.race([userPromise, timeoutPromise]) as any
+
   if (!user) {
-    throw new Error('用户未登录')
+    throw new Error('用户未登录或获取用户信息超时')
   }
 
   const { data, error } = await supabase

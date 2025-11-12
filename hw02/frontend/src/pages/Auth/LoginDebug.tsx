@@ -1,6 +1,5 @@
 // 登录调试页面 - 帮助诊断登录问题
 import { useState } from 'react'
-import { supabase } from '@/config/supabase.config'
 import { signInWithEmail, getCurrentUser, getCurrentSession } from '@/api/auth.api'
 import './Auth.css'
 
@@ -26,6 +25,22 @@ const LoginDebug = () => {
     setLoading(true)
     setResult(null)
 
+    // 添加超时保护
+    const timeoutId = setTimeout(() => {
+      console.error('登录测试超时（超过30秒）')
+      setResult({
+        success: false,
+        message: '登录测试超时，请检查网络连接或 Supabase 配置',
+        error: {
+          message: '请求超时（超过30秒）',
+          status: 'TIMEOUT',
+          code: 'TIMEOUT'
+        },
+        config: checkSupabaseConfig()
+      })
+      setLoading(false)
+    }, 30000) // 30秒超时
+
     try {
       console.log('=== 开始登录测试 ===')
       console.log('邮箱:', email)
@@ -36,36 +51,72 @@ const LoginDebug = () => {
       console.log('Supabase 配置:', config)
 
       if (!config.urlValid || !config.keyValid) {
+        clearTimeout(timeoutId)
         throw new Error('Supabase 配置不正确')
       }
 
       // 2. 测试登录
       console.log('开始调用 signInWithEmail...')
-      const { user, session, error } = await signInWithEmail(email, password)
-
-      console.log('登录结果:', { user: user?.id, session: session?.access_token ? '有 session' : '无 session', error })
-
-      if (error) {
-        throw error
+      let user, session
+      
+      try {
+        const response = await signInWithEmail(email, password)
+        user = response.user
+        session = response.session
+        console.log('登录结果:', { 
+          user: user?.id, 
+          session: session?.access_token ? '有 session' : '无 session' 
+        })
+      } catch (loginError: any) {
+        console.error('登录调用失败:', loginError)
+        clearTimeout(timeoutId)
+        throw loginError
       }
 
       if (!user) {
+        clearTimeout(timeoutId)
         throw new Error('登录失败：未返回用户信息')
       }
 
       if (!session) {
+        clearTimeout(timeoutId)
         throw new Error('登录失败：未返回会话信息')
       }
 
-      // 3. 测试获取 session
-      const sessionData = await getCurrentSession()
-      console.log('获取 session:', { session: sessionData ? '有 session' : '无 session' })
+      // 3. 测试获取 session（使用 Promise.race 添加超时保护，但不阻塞）
+      console.log('开始获取 session...')
+      const sessionPromise = getCurrentSession().catch((err) => {
+        console.warn('获取 session 失败（不影响测试）:', err?.message || err)
+        return null
+      })
+      const sessionTimeout = new Promise((resolve) => 
+        setTimeout(() => {
+          console.warn('获取 session 超时（5秒）')
+          resolve(null)
+        }, 5000)
+      )
+      const sessionData = await Promise.race([sessionPromise, sessionTimeout])
+      console.log('获取 session 完成:', { session: sessionData ? '有 session' : '无 session' })
 
-      // 4. 测试获取用户
-      const userData = await getCurrentUser()
-      console.log('获取用户:', { user: userData?.id })
+      // 4. 测试获取用户（使用 Promise.race 添加超时保护，但不阻塞）
+      console.log('开始获取用户...')
+      const userPromise = getCurrentUser().catch((err) => {
+        console.warn('获取用户失败（不影响测试）:', err?.message || err)
+        return null
+      })
+      const userTimeout = new Promise((resolve) => 
+        setTimeout(() => {
+          console.warn('获取用户超时（5秒）')
+          resolve(null)
+        }, 5000)
+      )
+      const userData: any = await Promise.race([userPromise, userTimeout])
+      console.log('获取用户完成:', { user: userData?.id })
 
-      setResult({
+      clearTimeout(timeoutId)
+      
+      console.log('准备设置成功结果...')
+      const resultData = {
         success: true,
         message: '登录成功！',
         user: {
@@ -75,23 +126,35 @@ const LoginDebug = () => {
         },
         session: {
           accessToken: session.access_token ? '有 token' : '无 token',
-          expiresAt: session.expires_at
+          expiresAt: session.expires_at,
+          sessionData: sessionData ? '已获取' : '获取超时或失败'
         },
         config
-      })
+      }
+      console.log('设置结果数据:', resultData)
+      setResult(resultData)
+      console.log('成功结果已设置')
     } catch (error: any) {
+      clearTimeout(timeoutId)
       console.error('登录测试失败:', error)
+      
+      const errorMessage = error?.message || '登录失败'
+      const errorStatus = error?.status || error?.statusCode || 'UNKNOWN'
+      const errorCode = error?.code || error?.error_code || 'UNKNOWN'
+      
       setResult({
         success: false,
-        message: error.message || '登录失败',
+        message: errorMessage,
         error: {
-          message: error.message,
-          status: error.status,
-          code: error.code
+          message: errorMessage,
+          status: errorStatus,
+          code: errorCode,
+          fullError: error?.toString()
         },
         config: checkSupabaseConfig()
       })
     } finally {
+      console.log('finally 块执行，设置 loading 为 false')
       setLoading(false)
     }
   }
@@ -182,6 +245,15 @@ const LoginDebug = () => {
                   
                   <h4>会话信息</h4>
                   <pre>{JSON.stringify(result.session, null, 2)}</pre>
+                  
+                  <div style={{ marginTop: '15px', padding: '10px', background: '#e6f3ff', borderRadius: '6px' }}>
+                    <strong>💡 说明：</strong>
+                    <ul style={{ marginTop: '8px', marginBottom: 0 }}>
+                      <li>登录已成功！您的账户已验证。</li>
+                      <li>如果 "sessionData" 显示 "获取超时或失败"，这是正常的，不影响登录功能。</li>
+                      <li>您可以使用这个账户正常登录系统。</li>
+                    </ul>
+                  </div>
                 </div>
               ) : (
                 <div className="result-details">
@@ -199,6 +271,27 @@ const LoginDebug = () => {
                 </div>
               )}
             </div>
+          </div>
+        )}
+        
+        {/* 调试信息（开发时显示） */}
+        {process.env.NODE_ENV === 'development' && (
+          <div className="debug-section" style={{ fontSize: '12px', color: '#666' }}>
+            <h3>🔧 调试信息</h3>
+            <div>
+              <strong>Loading 状态:</strong> {loading ? 'true' : 'false'}
+            </div>
+            <div>
+              <strong>Result 状态:</strong> {result ? '已设置' : '未设置'}
+            </div>
+            {result && (
+              <div>
+                <strong>Result 内容:</strong>
+                <pre style={{ fontSize: '10px', maxHeight: '100px', overflow: 'auto' }}>
+                  {JSON.stringify(result, null, 2)}
+                </pre>
+              </div>
+            )}
           </div>
         )}
 

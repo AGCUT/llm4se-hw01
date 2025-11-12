@@ -70,17 +70,21 @@ export const useAuthStore = create<AuthState>()(
 
           set({ user, session })
 
-          // 获取用户资料（即使失败也不影响登录）
+          // 立即设置 loading 为 false，避免阻塞页面渲染
+          set({ loading: false })
+
+          // 获取用户资料（异步执行，不阻塞登录流程）
           if (user) {
-            try {
-              const profile = await getProfile(user.id)
-              console.log('获取用户资料:', profile ? '成功' : '不存在')
-              set({ profile })
-            } catch (profileError) {
-              // Profile 获取失败不影响登录，可能是新用户还没有 profile
-              console.warn('获取用户资料失败（不影响登录）:', profileError)
-              set({ profile: null })
-            }
+            getProfile(user.id)
+              .then(profile => {
+                console.log('获取用户资料:', profile ? '成功' : '不存在')
+                set({ profile })
+              })
+              .catch(profileError => {
+                // Profile 获取失败不影响登录，可能是新用户还没有 profile
+                console.warn('获取用户资料失败（不影响登录）:', profileError)
+                set({ profile: null })
+              })
           }
 
           console.log('登录流程完成')
@@ -104,11 +108,10 @@ export const useAuthStore = create<AuthState>()(
             }
           }
           
-          set({ error: errorMessage })
+          set({ error: errorMessage, loading: false })
           throw new Error(errorMessage)
-        } finally {
-          set({ loading: false })
         }
+        // 注意：成功时已在设置 user/session 后立即设置 loading: false
       },
 
       // 注册
@@ -160,23 +163,35 @@ export const useAuthStore = create<AuthState>()(
       refreshAuth: async () => {
         set({ loading: true, error: null })
         try {
-          const [user, session] = await Promise.all([
-            getCurrentUser(),
-            getCurrentSession()
-          ])
+          // 先尝试快速获取 session（从本地存储）
+          const sessionPromise = getCurrentSession().catch(() => null)
+          const sessionTimeout = new Promise((resolve) => 
+            setTimeout(() => resolve(null), 2000) // 2秒超时
+          )
+          const session = await Promise.race([sessionPromise, sessionTimeout]) as any
+
+          // 如果有 session，尝试获取用户
+          let user = null
+          if (session) {
+            const userPromise = getCurrentUser().catch(() => null)
+            const userTimeout = new Promise((resolve) => 
+              setTimeout(() => resolve(null), 2000) // 2秒超时
+            )
+            user = await Promise.race([userPromise, userTimeout]) as any
+          }
 
           set({ user, session })
 
-          // 获取用户资料（即使失败也不影响认证状态）
+          // 获取用户资料（即使失败也不影响认证状态，异步执行，不阻塞）
           if (user) {
-            try {
-              const profile = await getProfile(user.id)
-              set({ profile })
-            } catch (error) {
-              // Profile 获取失败不影响认证状态，可能是新用户还没有 profile
-              console.log('获取用户资料失败（可能是新用户）:', error)
-              set({ profile: null })
-            }
+            getProfile(user.id)
+              .then(profile => {
+                set({ profile })
+              })
+              .catch(error => {
+                console.log('获取用户资料失败（可能是新用户）:', error)
+                set({ profile: null })
+              })
           } else {
             // 没有用户，清除 profile
             set({ profile: null })

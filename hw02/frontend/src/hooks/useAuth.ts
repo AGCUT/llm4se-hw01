@@ -24,37 +24,65 @@ export const useAuth = (): UseAuthReturn => {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    // 获取当前会话
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session)
-      setUser(session?.user ?? null)
-      
-      // 如果有用户，获取用户资料
-      if (session?.user) {
-        getProfile(session.user.id)
-          .then(setProfile)
-          .catch(console.error)
-          .finally(() => setLoading(false))
-      } else {
-        setLoading(false)
+    let isCancelled = false
+
+    // 获取当前会话（带超时保护）
+    const initAuth = async () => {
+      try {
+        const sessionPromise = supabase.auth.getSession()
+        const timeoutPromise = new Promise((resolve) => 
+          setTimeout(() => resolve({ data: { session: null } }), 2000)
+        )
+        const { data: { session } } = await Promise.race([sessionPromise, timeoutPromise]) as any
+        
+        if (isCancelled) return
+
+        setSession(session)
+        setUser(session?.user ?? null)
+        
+        // 如果有用户，获取用户资料（异步，不阻塞）
+        if (session?.user) {
+          getProfile(session.user.id)
+            .then(profile => {
+              if (!isCancelled) setProfile(profile)
+            })
+            .catch(error => {
+              console.error('获取用户资料失败:', error)
+              if (!isCancelled) setProfile(null)
+            })
+            .finally(() => {
+              if (!isCancelled) setLoading(false)
+            })
+        } else {
+          setLoading(false)
+        }
+      } catch (error) {
+        console.error('初始化认证失败:', error)
+        if (!isCancelled) {
+          setLoading(false)
+        }
       }
-    })
+    }
+
+    initAuth()
 
     // 监听认证状态变化
     const {
       data: { subscription }
     } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      if (isCancelled) return
+
       setSession(session)
       setUser(session?.user ?? null)
 
-      // 更新用户资料
+      // 更新用户资料（异步，不阻塞）
       if (session?.user) {
         try {
           const profileData = await getProfile(session.user.id)
-          setProfile(profileData)
+          if (!isCancelled) setProfile(profileData)
         } catch (error) {
           console.error('获取用户资料失败:', error)
-          setProfile(null)
+          if (!isCancelled) setProfile(null)
         }
       } else {
         setProfile(null)
@@ -65,6 +93,7 @@ export const useAuth = (): UseAuthReturn => {
 
     // 清理订阅
     return () => {
+      isCancelled = true
       subscription.unsubscribe()
     }
   }, [])
