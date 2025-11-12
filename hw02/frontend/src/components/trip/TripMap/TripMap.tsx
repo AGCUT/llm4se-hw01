@@ -205,20 +205,22 @@ const TripMap = ({ trip, height = '600px' }: TripMapProps) => {
       for (let index = 0; index < needGeocode.length; index++) {
         const loc = needGeocode[index]
         
-        // 添加延迟避免 API 限流（每个请求间隔 1 秒，避免并发限制）
-        // 高德地图免费版限制：每秒最多 1 次请求
+        // 添加延迟避免 API 限流（每个请求间隔 2 秒，避免并发限制）
+        // 高德地图免费版限制：QPS（每秒查询数）有限制，建议间隔 2 秒以上
         if (index > 0) {
-          console.log(`[TripMap] 等待 1 秒后处理下一个地址（避免 API 限流）...`)
-          await new Promise(resolve => setTimeout(resolve, 1000))
+          const waitTime = 2000 // 2 秒
+          console.log(`[TripMap] 等待 ${waitTime}ms 后处理下一个地址（避免 API 限流）...`)
+          await new Promise(resolve => setTimeout(resolve, waitTime))
         }
 
         console.log(`[TripMap] 正在地理编码 (${index + 1}/${needGeocode.length}): ${loc.address}`)
         const geocodeStartTime = Date.now()
         
-        // 添加重试机制（最多重试 3 次）
+        // 添加重试机制（最多重试 5 次，限流错误时增加重试次数）
         let retryCount = 0
-        const maxRetries = 3
+        const maxRetries = 5
         let coordinates = null
+        let lastError: any = null
         
         while (retryCount < maxRetries && !coordinates) {
           try {
@@ -239,32 +241,39 @@ const TripMap = ({ trip, height = '600px' }: TripMapProps) => {
               retryCount++
               if (retryCount < maxRetries) {
                 // 等待更长时间后重试（指数退避）
-                const waitTime = Math.min(1000 * Math.pow(2, retryCount - 1), 5000)
+                const waitTime = Math.min(2000 * Math.pow(2, retryCount - 1), 10000)
                 console.log(`[TripMap] 等待 ${waitTime}ms 后重试 (${retryCount}/${maxRetries})...`)
                 await new Promise(resolve => setTimeout(resolve, waitTime))
               }
             }
           } catch (error: any) {
+            lastError = error
             const geocodeDuration = Date.now() - geocodeStartTime
             console.error(`[TripMap] ❌ 地理编码异常 (耗时 ${geocodeDuration}ms): ${loc.address}`, error)
             console.error(`[TripMap] 错误详情:`, error?.message, error?.stack)
             
             // 检查是否是限流错误
-            if (error?.message?.includes('CUQPS_HAS_EXCEEDED_THE_LIMIT') || 
-                error?.message?.includes('限流') ||
-                error?.message?.includes('EXCEEDED')) {
+            const isRateLimitError = error?.message?.includes('CUQPS_HAS_EXCEEDED_THE_LIMIT') || 
+                                    error?.message?.includes('限流') ||
+                                    error?.message?.includes('EXCEEDED') ||
+                                    error?.message?.includes('CUQPS')
+            
+            if (isRateLimitError) {
               retryCount++
               if (retryCount < maxRetries) {
-                // 限流错误，等待更长时间后重试（指数退避）
-                const waitTime = Math.min(2000 * Math.pow(2, retryCount - 1), 10000)
-                console.log(`[TripMap] 遇到限流错误，等待 ${waitTime}ms 后重试 (${retryCount}/${maxRetries})...`)
+                // 限流错误，等待更长时间后重试（指数退避，最少 5 秒）
+                const waitTime = Math.min(5000 * Math.pow(2, retryCount - 1), 30000) // 5秒、10秒、20秒、最多30秒
+                console.log(`[TripMap] ⚠️ 遇到限流错误，等待 ${waitTime}ms 后重试 (${retryCount}/${maxRetries})...`)
+                console.log(`[TripMap] 提示：如果持续遇到限流，请检查 API Key 的 QPS 限制或考虑升级 API Key`)
                 await new Promise(resolve => setTimeout(resolve, waitTime))
               } else {
                 console.error(`[TripMap] ❌ 地理编码失败，已达到最大重试次数: ${loc.address}`)
+                console.error(`[TripMap] 错误信息: ${error?.message}`)
                 break
               }
             } else {
               // 其他错误，不重试
+              console.error(`[TripMap] ❌ 非限流错误，不重试: ${loc.address}`)
               break
             }
           }
@@ -272,6 +281,9 @@ const TripMap = ({ trip, height = '600px' }: TripMapProps) => {
         
         if (!coordinates) {
           console.warn(`[TripMap] ⚠️ 地理编码最终失败: ${loc.address}`)
+          if (lastError) {
+            console.warn(`[TripMap] 最后错误: ${lastError?.message}`)
+          }
         }
       }
 
@@ -540,12 +552,34 @@ const TripMap = ({ trip, height = '600px' }: TripMapProps) => {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          background: '#f5f5f5',
+          background: 'rgba(245, 245, 245, 0.95)',
           zIndex: 10
         }}>
-          <div style={{ textAlign: 'center' }}>
+          <div style={{ 
+            textAlign: 'center', 
+            padding: '24px', 
+            background: 'white', 
+            borderRadius: '8px', 
+            boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+            maxWidth: '400px'
+          }}>
             <div style={{ fontSize: '48px', marginBottom: '16px' }}>🗺️</div>
-            <p>{geocodingLoading ? '正在地理编码地址...' : '正在加载地图...'}</p>
+            <p style={{ margin: '0 0 8px 0', fontSize: '16px', fontWeight: 'bold' }}>
+              {geocodingLoading ? '正在地理编码地址...' : '正在加载地图...'}
+            </p>
+            {geocodingLoading && rawLocations.length > 0 && (
+              <div style={{ margin: '0', fontSize: '14px', color: '#666' }}>
+                <p style={{ margin: '0 0 4px 0' }}>
+                  共 {rawLocations.filter(loc => loc.needGeocode && !loc.coordinates).length} 个地址需要编码
+                </p>
+                <p style={{ margin: '0', fontSize: '12px', color: '#999' }}>
+                  为避免 API 限流，每个地址间隔 2 秒处理
+                </p>
+                <p style={{ margin: '8px 0 0 0', fontSize: '11px', color: '#ff9800' }}>
+                  ⚠️ 如果遇到限流错误，系统会自动重试（最多 5 次）
+                </p>
+              </div>
+            )}
           </div>
         </div>
       )}
