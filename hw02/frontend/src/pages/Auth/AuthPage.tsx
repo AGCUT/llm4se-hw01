@@ -102,12 +102,22 @@ export const AuthPage = () => {
     try {
       if (mode === 'login') {
         // 登录
+        console.log('开始登录流程...')
         await signIn(formData.email, formData.password)
-        navigate('/')
+        console.log('登录成功，准备跳转...')
+        
+        // 延迟一下，确保状态已更新
+        setTimeout(() => {
+          navigate('/')
+        }, 100)
       } else {
         // 注册
+        console.log('开始注册流程...')
         await signUp(formData.email, formData.password, formData.username)
+        console.log('注册成功')
+        
         alert('🎉 注册成功！\n\n如果启用了邮箱验证：\n1. 请检查您的邮箱（包括垃圾箱）\n2. 点击验证链接\n3. 返回登录\n\n如果禁用了邮箱验证：\n可以直接登录')
+        
         // 切换到登录模式
         setMode('login')
         setFormData({ ...formData, password: '', confirmPassword: '' })
@@ -115,11 +125,21 @@ export const AuthPage = () => {
     } catch (error: any) {
       console.error(`${mode === 'login' ? '登录' : '注册'}失败:`, error)
       
+      // 显示错误信息（error state 已经在 store 中设置）
+      const errorMessage = error.message || `${mode === 'login' ? '登录' : '注册'}失败，请重试`
+      
       // 处理特定错误
-      if (error.message?.includes('Email not confirmed')) {
+      if (errorMessage.includes('邮箱未验证')) {
         alert('⚠️ 邮箱未验证\n\n请检查您的邮箱并点击验证链接。\n\n如果没有收到邮件，请检查垃圾箱。\n\n开发环境建议：在 Supabase Dashboard → Authentication → Providers → Email 中禁用 "Confirm email"')
-      } else if (error.message?.includes('User already registered')) {
+      } else if (errorMessage.includes('邮箱或密码错误')) {
+        alert('❌ 邮箱或密码错误\n\n请检查：\n1. 邮箱是否正确\n2. 密码是否正确\n3. 是否已注册账户\n\n如果还没有账户，请先注册')
+      } else if (errorMessage.includes('用户不存在')) {
+        alert('❌ 用户不存在\n\n请先注册账户，然后登录')
+      } else if (errorMessage.includes('User already registered')) {
         alert('❌ 该邮箱已被注册\n\n请使用其他邮箱或切换到登录模式')
+      } else {
+        // 显示通用错误
+        alert(`❌ ${errorMessage}\n\n请检查：\n1. 网络连接是否正常\n2. Supabase 配置是否正确\n3. 浏览器控制台是否有错误信息`)
       }
     }
   }

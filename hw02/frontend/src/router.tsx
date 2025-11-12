@@ -7,6 +7,7 @@ import MainLayout from '@/components/layout/MainLayout/MainLayout'
 // 页面组件
 import Home from '@/pages/Home/Home'
 import AuthPage from '@/pages/Auth/AuthPage'
+import LoginDebug from '@/pages/Auth/LoginDebug'
 import Dashboard from '@/pages/Dashboard/Dashboard'
 import TripCreate from '@/pages/TripCreate/TripCreate'
 import TripDetail from '@/pages/TripDetail/TripDetail'
@@ -153,6 +154,11 @@ export const router = createBrowserRouter([
         element: <AuthPage />
       }
     ]
+  },
+  // 调试路由（不需要认证，独立页面）
+  {
+    path: '/debug/login',
+    element: <LoginDebug />
   },
   // 404 页面
   {
