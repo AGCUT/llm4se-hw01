@@ -1,2 +1,1 @@
-export { default } from './ExpenseList';
-
+export { default } from './ExpenseList'

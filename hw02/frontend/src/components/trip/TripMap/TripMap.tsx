@@ -549,6 +549,7 @@ const TripMap = ({ trip, height = '600px', centerOnLocation }: TripMapProps) => 
     polylinesRef.current.forEach(polyline => polyline.remove())
     markersRef.current = []
     polylinesRef.current = []
+    infoWindowsRef.current.clear() // 清除信息窗口引用
 
     // 添加标记点
     locationsToShow.forEach((location) => {
@@ -617,6 +618,10 @@ const TripMap = ({ trip, height = '600px', centerOnLocation }: TripMapProps) => 
           `,
           ...(infoWindowOffset && { offset: infoWindowOffset })
         })
+
+        // 保存信息窗口引用，使用坐标作为 key
+        const coordKey = `${finalLng.toFixed(6)},${finalLat.toFixed(6)}`
+        infoWindowsRef.current.set(coordKey, { marker, infoWindow })
 
         marker.on('click', () => {
           infoWindow.open(mapInstance, marker.getPosition())

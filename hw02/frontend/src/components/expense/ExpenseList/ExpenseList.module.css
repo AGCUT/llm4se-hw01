@@ -1,2 +1,206 @@
-/* ExpenseList组件样式 */
+/* ExpenseList样式 */
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 30px;
+}
 
+.loading,
+.empty {
+  text-align: center;
+  padding: 60px 20px;
+}
+
+.spinner {
+  font-size: 18px;
+  color: #667eea;
+}
+
+.emptyIcon {
+  font-size: 64px;
+  margin-bottom: 20px;
+}
+
+.empty p {
+  font-size: 16px;
+  color: #718096;
+  margin: 8px 0;
+}
+
+.emptyHint {
+  font-size: 14px;
+  color: #a0aec0;
+}
+
+/* 日期分组 */
+.dayGroup {
+  background: white;
+  border-radius: 12px;
+  padding: 20px;
+  border: 1px solid #e2e8f0;
+}
+
+.dayHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  padding-bottom: 15px;
+  border-bottom: 2px solid #e2e8f0;
+}
+
+.dayDate {
+  font-size: 18px;
+  font-weight: 700;
+  color: #2d3748;
+  margin: 0;
+}
+
+.dayTotal {
+  font-size: 20px;
+  font-weight: 700;
+  color: #667eea;
+}
+
+.expenses {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* 费用项 */
+.expenseItem {
+  display: flex;
+  gap: 15px;
+  padding: 15px;
+  background: #f7fafc;
+  border-radius: 10px;
+  transition: all 0.2s;
+  position: relative;
+}
+
+.expenseItem:hover {
+  background: #edf2f7;
+  transform: translateX(4px);
+}
+
+.expenseIcon {
+  font-size: 32px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.expenseContent {
+  flex: 1;
+  min-width: 0;
+}
+
+.expenseHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 8px;
+  gap: 15px;
+}
+
+.expenseCategory {
+  font-size: 16px;
+  font-weight: 600;
+  color: #2d3748;
+  margin: 0 0 4px 0;
+}
+
+.expenseDescription {
+  font-size: 14px;
+  color: #718096;
+  margin: 0;
+  line-height: 1.5;
+}
+
+.expenseAmount {
+  font-size: 20px;
+  font-weight: 700;
+  color: #48bb78;
+  white-space: nowrap;
+}
+
+.expenseMeta {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  font-size: 12px;
+  color: #a0aec0;
+}
+
+.expenseTime,
+.expensePayment,
+.expensePayer {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.expenseActions {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  flex-shrink: 0;
+}
+
+.actionButton {
+  background: white;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  padding: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-size: 16px;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.actionButton:hover:not(:disabled) {
+  background: #f7fafc;
+  border-color: #cbd5e0;
+  transform: scale(1.1);
+}
+
+.actionButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* 响应式 */
+@media (max-width: 768px) {
+  .dayGroup {
+    padding: 15px;
+  }
+
+  .expenseItem {
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .expenseHeader {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .expenseAmount {
+    font-size: 18px;
+  }
+
+  .expenseActions {
+    align-self: flex-end;
+  }
+}
