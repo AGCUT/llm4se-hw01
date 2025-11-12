@@ -86,10 +86,18 @@ export const geocode = async (address: string, amapInstance?: any): Promise<{ ln
   try {
     console.log(`[geocode] 开始地理编码: ${address}`)
     
+    // 检查缓存
+    if (geocodeCache.has(address)) {
+      const cached = geocodeCache.get(address)
+      console.log(`[geocode] ✅ 使用缓存: ${address} ->`, cached)
+      return cached || null
+    }
+    
     // 获取 API Key
     const apiKey = import.meta.env.VITE_AMAP_KEY || AMAP_CONFIG.key
     if (!apiKey) {
       console.error('[geocode] ⚠️ 高德地图 API Key 未配置')
+      geocodeCache.set(address, null)
       return null
     }
     
@@ -149,25 +157,38 @@ export const geocode = async (address: string, amapInstance?: any): Promise<{ ln
           
           if (!isNaN(lng) && !isNaN(lat)) {
             console.log(`[geocode] ✅ 地理编码成功: ${address} ->`, { lng, lat })
+            // 缓存结果
+            geocodeCache.set(address, { lng, lat })
             return { lng, lat }
           } else {
             console.error(`[geocode] ❌ 坐标解析失败: lng=${lng}, lat=${lat}`)
+            geocodeCache.set(address, null)
             return null
           }
         } else {
           console.error(`[geocode] ❌ location 为空`)
+          geocodeCache.set(address, null)
           return null
         }
       } else {
         // 检查是否是限流错误
-        if (data.status === '0' && data.info && data.info.includes('CUQPS_HAS_EXCEEDED_THE_LIMIT')) {
-          console.error(`[geocode] ❌ 地理编码限流错误: ${address}`, {
-            status: data.status,
-            info: data.info,
-            count: data.count
-          })
-          // 抛出限流错误，让调用者可以重试
-          throw new Error(`地理编码限流: ${data.info}`)
+        if (data.status === '0' && data.info) {
+          // 检查各种限流错误码
+          const isRateLimitError = data.info.includes('CUQPS_HAS_EXCEEDED_THE_LIMIT') ||
+                                  data.info.includes('CUQPS') ||
+                                  data.info.includes('EXCEEDED') ||
+                                  data.info.includes('限流') ||
+                                  data.info.includes('QPS')
+          
+          if (isRateLimitError) {
+            console.error(`[geocode] ❌ 地理编码限流错误: ${address}`, {
+              status: data.status,
+              info: data.info,
+              count: data.count
+            })
+            // 抛出限流错误，让调用者可以重试
+            throw new Error(`地理编码限流: ${data.info}`)
+          }
         }
         
         console.warn(`[geocode] ⚠️ 地理编码失败: ${address}`, {
@@ -176,6 +197,8 @@ export const geocode = async (address: string, amapInstance?: any): Promise<{ ln
           count: data.count,
           geocodes: data.geocodes
         })
+        // 缓存失败结果（避免重复请求）
+        geocodeCache.set(address, null)
         return null
       }
     } catch (fetchError: any) {
@@ -183,10 +206,15 @@ export const geocode = async (address: string, amapInstance?: any): Promise<{ ln
       console.error(`[geocode] 错误类型:`, fetchError?.constructor?.name)
       console.error(`[geocode] 错误消息:`, fetchError?.message)
       console.error(`[geocode] 错误堆栈:`, fetchError?.stack)
-      return null
+      // 网络错误不缓存，允许重试
+      throw fetchError
     }
   } catch (error: any) {
     console.error(`[geocode] ❌ 地理编码错误: ${address}`, error)
+    // 限流错误抛出，其他错误返回 null
+    if (error?.message?.includes('限流') || error?.message?.includes('CUQPS_HAS_EXCEEDED_THE_LIMIT')) {
+      throw error
+    }
     return null
   }
 }
