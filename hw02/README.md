@@ -10,8 +10,9 @@
 
 1. **访问 GitHub Actions**
    - 打开本仓库的 [Actions 页面](https://github.com/AGCUT/llm4se-hw01/actions)
-   - 选择最新的 workflow run
-   - 在 **Artifacts** 部分下载 `docker-image-{version}.tar.gz`
+   - 选择最新的 workflow run（构建完成后）
+   - 滚动到页面底部，在 **Artifacts** 部分下载 `docker-image-{version}.tar.gz`
+   - **注意**：Artifacts 只在构建完成后才会出现，需要等待构建完成
 
 2. **导入并运行镜像**
 
