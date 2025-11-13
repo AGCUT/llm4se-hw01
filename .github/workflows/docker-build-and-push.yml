@@ -136,7 +136,7 @@ jobs:
 
       - name: Upload image tar file as artifact
         if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/')
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: docker-image-${{ steps.version.outputs.version }}
           path: ai-travel-planner-${{ steps.version.outputs.version }}.tar.gz
