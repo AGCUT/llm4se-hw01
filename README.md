@@ -31,7 +31,8 @@
    docker load -i docker-image-latest.tar
 
    # Windows - 方法二：使用 WSL（如果已安装）
-   wsl gunzip docker-image-latest.tar.gz
+   # 在 WSL 终端中直接运行（不需要 wsl 命令）：
+   gunzip docker-image-latest.tar.gz
    docker load -i docker-image-latest.tar
 
    # Windows - 方法三：使用 Git Bash（如果已安装 Git）
