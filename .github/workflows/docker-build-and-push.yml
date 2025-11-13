@@ -19,12 +19,14 @@ on:
         default: 'latest'
 
 env:
-  REGISTRY: registry.cn-hangzhou.aliyuncs.com
+  REGISTRY: crpi-9vyhiuv04rrbghql.cn-hangzhou.personal.cr.aliyuncs.com
   # 需要在 GitHub Secrets 中配置以下变量：
   # 1. 阿里云容器镜像服务凭证（必须）：
-  #    ALIYUN_REGISTRY_USERNAME: 阿里云容器镜像服务用户名
-  #    ALIYUN_REGISTRY_PASSWORD: 阿里云容器镜像服务密码
-  #    ALIYUN_NAMESPACE: 阿里云容器镜像服务命名空间（例如：your-username 或 your-org）
+  #    个人版容器镜像服务（当前配置）
+  #      ALIYUN_REGISTRY_USERNAME: 你的阿里云账号（例如：aliyun7239471640）
+  #      ALIYUN_REGISTRY_PASSWORD: 固定密码或 AccessKey Secret
+  #      设置固定密码：控制台 -> 实例管理 -> 访问凭证 -> 设置固定密码
+  #    ALIYUN_NAMESPACE: 个人版命名空间（在控制台查看，通常是你的阿里云账号或实例ID）
   # 2. 前端环境变量（必须）：
   #    VITE_SUPABASE_URL: Supabase 项目 URL
   #    VITE_SUPABASE_ANON_KEY: Supabase Anon Key
@@ -56,6 +58,7 @@ jobs:
           registry: ${{ env.REGISTRY }}
           username: ${{ secrets.ALIYUN_REGISTRY_USERNAME }}
           password: ${{ secrets.ALIYUN_REGISTRY_PASSWORD }}
+        continue-on-error: false
 
       - name: Extract metadata (tags, labels)
         id: meta
