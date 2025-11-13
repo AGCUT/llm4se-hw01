@@ -1,0 +1,145 @@
+name: Docker Build and Push to Aliyun
+
+on:
+  push:
+    branches:
+      - main
+      - master
+    tags:
+      - 'v*'
+  pull_request:
+    branches:
+      - main
+      - master
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version tag (e.g., v1.0.0)'
+        required: true
+        default: 'latest'
+
+env:
+  REGISTRY: registry.cn-hangzhou.aliyuncs.com
+  # 需要在 GitHub Secrets 中配置以下变量：
+  # 1. 阿里云容器镜像服务凭证（必须）：
+  #    ALIYUN_REGISTRY_USERNAME: 阿里云容器镜像服务用户名
+  #    ALIYUN_REGISTRY_PASSWORD: 阿里云容器镜像服务密码
+  #    ALIYUN_NAMESPACE: 阿里云容器镜像服务命名空间（例如：your-username 或 your-org）
+  # 2. 前端环境变量（必须）：
+  #    VITE_SUPABASE_URL: Supabase 项目 URL
+  #    VITE_SUPABASE_ANON_KEY: Supabase Anon Key
+  # 3. 前端环境变量（可选）：
+  #    VITE_AMAP_KEY: 高德地图 API Key
+  #    VITE_XUNFEI_APP_ID: 科大讯飞 App ID
+  #    VITE_XUNFEI_API_KEY: 科大讯飞 API Key
+  #    VITE_API_URL: 后端 API URL（默认：http://localhost:3000）
+  #    VITE_WS_URL: WebSocket URL（默认：ws://localhost:3000）
+  # 注意：阿里云百炼 API Key 不需要在 GitHub Secrets 中配置，用户需要在前端设置页面输入
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Aliyun Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ secrets.ALIYUN_REGISTRY_USERNAME }}
+          password: ${{ secrets.ALIYUN_REGISTRY_PASSWORD }}
+
+      - name: Extract metadata (tags, labels)
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ secrets.ALIYUN_NAMESPACE }}/ai-travel-planner
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=sha,prefix={{branch}}-
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Determine version tag
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "version=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+          elif [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            echo "version=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+          else
+            echo "version=latest" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./hw02/frontend
+          file: ./hw02/frontend/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }},${{ env.REGISTRY }}/${{ secrets.ALIYUN_NAMESPACE }}/ai-travel-planner:${{ steps.version.outputs.version }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ secrets.ALIYUN_NAMESPACE }}/ai-travel-planner:buildcache
+          cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ secrets.ALIYUN_NAMESPACE }}/ai-travel-planner:buildcache,mode=max
+          platforms: linux/amd64,linux/arm64
+          build-args: |
+            VITE_SUPABASE_URL=${{ secrets.VITE_SUPABASE_URL }}
+            VITE_SUPABASE_ANON_KEY=${{ secrets.VITE_SUPABASE_ANON_KEY }}
+            VITE_AMAP_KEY=${{ secrets.VITE_AMAP_KEY }}
+            VITE_XUNFEI_APP_ID=${{ secrets.VITE_XUNFEI_APP_ID }}
+            VITE_XUNFEI_API_KEY=${{ secrets.VITE_XUNFEI_API_KEY }}
+            VITE_API_URL=${{ secrets.VITE_API_URL }}
+            VITE_WS_URL=${{ secrets.VITE_WS_URL }}
+
+      - name: Generate image info
+        id: image-info
+        run: |
+          echo "## Docker Image Information" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Image Tags" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          echo "${{ steps.meta.outputs.tags }}" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Pull Command" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
+          echo "docker pull ${{ env.REGISTRY }}/${{ secrets.ALIYUN_NAMESPACE }}/ai-travel-planner:${{ steps.version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Run Command" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
+          echo "docker run -d -p 80:80 --name ai-travel-planner ${{ env.REGISTRY }}/${{ secrets.ALIYUN_NAMESPACE }}/ai-travel-planner:${{ steps.version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+
+      - name: Export image as tar file
+        if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/')
+        run: |
+          IMAGE_TAG="${{ env.REGISTRY }}/${{ secrets.ALIYUN_NAMESPACE }}/ai-travel-planner:${{ steps.version.outputs.version }}"
+          echo "Pulling image: $IMAGE_TAG"
+          docker pull $IMAGE_TAG
+          echo "Saving image to tar file..."
+          docker save $IMAGE_TAG -o ai-travel-planner-${{ steps.version.outputs.version }}.tar
+          echo "Compressing tar file..."
+          gzip ai-travel-planner-${{ steps.version.outputs.version }}.tar
+          echo "Image saved: ai-travel-planner-${{ steps.version.outputs.version }}.tar.gz"
+          ls -lh ai-travel-planner-${{ steps.version.outputs.version }}.tar.gz
+
+      - name: Upload image tar file as artifact
+        if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/')
+        uses: actions/upload-artifact@v3
+        with:
+          name: docker-image-${{ steps.version.outputs.version }}
+          path: ai-travel-planner-${{ steps.version.outputs.version }}.tar.gz
+          retention-days: 90
+          if-no-files-found: error
+
