@@ -21,9 +21,20 @@ on:
 env:
   REGISTRY: registry.cn-hangzhou.aliyuncs.com
   # 需要在 GitHub Secrets 中配置以下变量：
-  # ALIYUN_REGISTRY_USERNAME: 阿里云容器镜像服务用户名
-  # ALIYUN_REGISTRY_PASSWORD: 阿里云容器镜像服务密码
-  # ALIYUN_NAMESPACE: 阿里云容器镜像服务命名空间（例如：your-username 或 your-org）
+  # 1. 阿里云容器镜像服务凭证（必须）：
+  #    ALIYUN_REGISTRY_USERNAME: 阿里云容器镜像服务用户名
+  #    ALIYUN_REGISTRY_PASSWORD: 阿里云容器镜像服务密码
+  #    ALIYUN_NAMESPACE: 阿里云容器镜像服务命名空间（例如：your-username 或 your-org）
+  # 2. 前端环境变量（必须）：
+  #    VITE_SUPABASE_URL: Supabase 项目 URL
+  #    VITE_SUPABASE_ANON_KEY: Supabase Anon Key
+  # 3. 前端环境变量（可选）：
+  #    VITE_AMAP_KEY: 高德地图 API Key
+  #    VITE_XUNFEI_APP_ID: 科大讯飞 App ID
+  #    VITE_XUNFEI_API_KEY: 科大讯飞 API Key
+  #    VITE_API_URL: 后端 API URL（默认：http://localhost:3000）
+  #    VITE_WS_URL: WebSocket URL（默认：ws://localhost:3000）
+  # 注意：阿里云百炼 API Key 不需要在 GitHub Secrets 中配置，用户需要在前端设置页面输入
 
 jobs:
   build-and-push:
@@ -81,6 +92,14 @@ jobs:
           cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ secrets.ALIYUN_NAMESPACE }}/ai-travel-planner:buildcache
           cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ secrets.ALIYUN_NAMESPACE }}/ai-travel-planner:buildcache,mode=max
           platforms: linux/amd64,linux/arm64
+          build-args: |
+            VITE_SUPABASE_URL=${{ secrets.VITE_SUPABASE_URL }}
+            VITE_SUPABASE_ANON_KEY=${{ secrets.VITE_SUPABASE_ANON_KEY }}
+            VITE_AMAP_KEY=${{ secrets.VITE_AMAP_KEY }}
+            VITE_XUNFEI_APP_ID=${{ secrets.VITE_XUNFEI_APP_ID }}
+            VITE_XUNFEI_API_KEY=${{ secrets.VITE_XUNFEI_API_KEY }}
+            VITE_API_URL=${{ secrets.VITE_API_URL }}
+            VITE_WS_URL=${{ secrets.VITE_WS_URL }}
 
       - name: Generate image info
         id: image-info
