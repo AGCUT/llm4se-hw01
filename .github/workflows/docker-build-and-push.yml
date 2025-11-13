@@ -24,8 +24,12 @@ env:
   # 1. 阿里云容器镜像服务凭证（必须）：
   #    个人版容器镜像服务（当前配置）
   #      ALIYUN_REGISTRY_USERNAME: 你的阿里云账号（例如：aliyun7239471640）
-  #      ALIYUN_REGISTRY_PASSWORD: 固定密码或 AccessKey Secret
-  #      设置固定密码：控制台 -> 实例管理 -> 访问凭证 -> 设置固定密码
+  #      ALIYUN_REGISTRY_PASSWORD: 【必须使用固定密码，不能使用 AccessKey】
+  #      设置固定密码步骤：
+  #        1. 登录阿里云容器镜像服务控制台
+  #        2. 进入"实例管理" -> "访问凭证"
+  #        3. 点击"设置固定密码"，设置一个新的登录密码
+  #        4. 将这个固定密码填入 ALIYUN_REGISTRY_PASSWORD
   #    ALIYUN_NAMESPACE: 个人版命名空间（在控制台查看，通常是你的阿里云账号或实例ID）
   # 2. 前端环境变量（必须）：
   #    VITE_SUPABASE_URL: Supabase 项目 URL
@@ -59,6 +63,11 @@ jobs:
           username: ${{ secrets.ALIYUN_REGISTRY_USERNAME }}
           password: ${{ secrets.ALIYUN_REGISTRY_PASSWORD }}
         continue-on-error: false
+
+      - name: Verify registry login
+        run: |
+          echo "Testing registry connection..."
+          docker pull ${{ env.REGISTRY }}/${{ secrets.ALIYUN_NAMESPACE }}/ai-travel-planner:latest 2>&1 || echo "Image does not exist yet (this is OK for first build)"
 
       - name: Extract metadata (tags, labels)
         id: meta
