@@ -101,8 +101,9 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }},${{ env.REGISTRY }}/${{ secrets.ALIYUN_NAMESPACE }}/ai-travel-planner:${{ steps.version.outputs.version }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ secrets.ALIYUN_NAMESPACE }}/ai-travel-planner:buildcache
-          cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ secrets.ALIYUN_NAMESPACE }}/ai-travel-planner:buildcache,mode=max
+          # 使用 GitHub Actions 本地缓存（阿里云个人版不支持 registry 缓存格式）
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
           platforms: linux/amd64,linux/arm64
           build-args: |
             VITE_SUPABASE_URL=${{ secrets.VITE_SUPABASE_URL }}
