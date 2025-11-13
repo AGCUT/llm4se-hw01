@@ -17,11 +17,25 @@
 2. **导入并运行镜像**
 
    ```bash
-   # 解压镜像文件
+   # Linux/Mac - 解压并导入
    gunzip docker-image-latest.tar.gz
-   # Windows PowerShell: Expand-Archive docker-image-latest.tar.gz
+   docker load -i docker-image-latest.tar
 
-   # 导入镜像
+   # Windows - 方法一：使用 7-Zip（推荐）
+   # 1. 安装 7-Zip: https://www.7-zip.org/
+   # 2. 右键点击 .tar.gz 文件 -> 7-Zip -> 解压到当前文件夹
+   # 3. 再次右键点击 .tar 文件 -> 7-Zip -> 解压到当前文件夹
+   # 4. 或者使用命令行：
+   7z x docker-image-latest.tar.gz
+   7z x docker-image-latest.tar
+   docker load -i docker-image-latest.tar
+
+   # Windows - 方法二：使用 WSL（如果已安装）
+   wsl gunzip docker-image-latest.tar.gz
+   docker load -i docker-image-latest.tar
+
+   # Windows - 方法三：使用 Git Bash（如果已安装 Git）
+   gunzip docker-image-latest.tar.gz
    docker load -i docker-image-latest.tar
 
    # 运行容器
