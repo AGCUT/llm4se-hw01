@@ -31,9 +31,15 @@
    docker load -i docker-image-latest.tar
 
    # Windows - 方法二：使用 WSL（如果已安装）
-   # 在 WSL 终端中直接运行（不需要 wsl 命令）：
+   # 在 WSL 终端中，文件如果在 Windows 文件系统（如 D:\），需要访问 /mnt/d/ 路径：
+   # 例如：文件在 D:\docker-image-latest\，在 WSL 中访问：
+   cd /mnt/d/docker-image-latest
    gunzip docker-image-latest.tar.gz
    docker load -i docker-image-latest.tar
+   # 或者将文件复制到 WSL 文件系统：
+   # cp /mnt/d/docker-image-latest/docker-image-latest.tar.gz ~/
+   # cd ~
+   # gunzip docker-image-latest.tar.gz
 
    # Windows - 方法三：使用 Git Bash（如果已安装 Git）
    gunzip docker-image-latest.tar.gz
