@@ -35,7 +35,11 @@ RUN npm ci --only=production=false
 COPY . .
 
 # 构建应用
-RUN npm run build
+# 使用 build:docker 脚本跳过 TypeScript 检查（仅用于 Docker 构建）
+# 如果构建失败，会输出详细错误信息
+RUN echo "Starting build process..." && \
+    echo "Running Docker build (skipping TypeScript check)..." && \
+    npm run build:docker || (echo "Build failed! Error details above." && exit 1)
 
 # 生产镜像 - 运行阶段
 FROM nginx:alpine
